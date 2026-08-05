@@ -2,15 +2,24 @@
 
 TeleOps is a Telegram-based operations bot for managing services running on a VPS. It is being built with NestJS, TypeScript, PostgreSQL, Redis, and Docker-oriented safety controls.
 
-![Node.js](https://img.shields.io/badge/Node.js-24.13.1-EC4899?style=for-the-badge&logo=node.js&logoColor=white)
-![NestJS](https://img.shields.io/badge/NestJS-11-EC4899?style=for-the-badge&logo=nestjs&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-Strict-EC4899?style=for-the-badge&logo=typescript&logoColor=white)
-![Prisma](https://img.shields.io/badge/Prisma-ORM-EC4899?style=for-the-badge&logo=prisma&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-EC4899?style=for-the-badge&logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-8-EC4899?style=for-the-badge&logo=redis&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Compose-EC4899?style=for-the-badge&logo=docker&logoColor=white)
-![Telegraf](https://img.shields.io/badge/Telegram-Telegraf-EC4899?style=for-the-badge&logo=telegram&logoColor=white)
-![Jest](https://img.shields.io/badge/Test-Jest-EC4899?style=for-the-badge&logo=jest&logoColor=white)
+### 🛠️ Tech Stack
+
+<p align="center">
+  <!-- Backend & Core -->
+  <img src="https://img.shields.io/badge/Node.js-24.13.1-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/NestJS-11-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" alt="NestJS" />
+  <img src="https://img.shields.io/badge/TypeScript-Strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <br>
+  <!-- Database & ORM -->
+  <img src="https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma&logoColor=white" alt="Prisma" />
+  <img src="https://img.shields.io/badge/PostgreSQL-17-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Redis-8-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+  <br>
+  <!-- DevOps & Tools & Test -->
+  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/Telegram-Telegraf-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegraf" />
+  <img src="https://img.shields.io/badge/Test-Jest-C21325?style=for-the-badge&logo=jest&logoColor=white" alt="Jest" />
+</p>
 
 ## Current Status
 
