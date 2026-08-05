@@ -4,10 +4,11 @@ Updated: 2026-08-05
 
 ## Current State
 
-- Workspace scaffolded from NestJS.
-- Milestone 0 is in progress.
-- Focus area: replace demo app with production-oriented foundation modules.
+- Milestone 0 foundation is complete and pushed.
+- Milestone 1 infrastructure assets are implemented locally.
+- Prisma schema, seed flow, migration SQL, Compose files, Dockerfile, and CI workflow are present.
 
 ## Next Checkpoint
 
-- Complete config validation, structured logging, health endpoint, and baseline verification.
+- Commit and push the Milestone 1 infrastructure slice.
+- Move into Telegram shell integration after Docker-backed runtime verification is possible.

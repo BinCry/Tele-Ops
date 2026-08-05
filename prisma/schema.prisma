@@ -1,0 +1,239 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  PENDING
+}
+
+enum AuditResult {
+  STARTED
+  SUCCESS
+  FAILED
+  DENIED
+  CANCELLED
+}
+
+enum ActionRequestStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  EXECUTED
+  FAILED
+}
+
+enum DeploymentRunStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  ROLLED_BACK
+  ROLLBACK_FAILED
+  CANCELLED
+}
+
+enum BackupStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum HealthCheckStatus {
+  HEALTHY
+  DEGRADED
+  DOWN
+}
+
+enum AlertEventStatus {
+  OPEN
+  RESOLVED
+  SUPPRESSED
+}
+
+model User {
+  id             String          @id @default(uuid())
+  telegramUserId String          @unique
+  username       String?
+  firstName      String?
+  lastName       String?
+  displayName    String
+  role           UserRole
+  status         UserStatus      @default(PENDING)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  lastSeenAt     DateTime?
+  createdById    String?
+  createdBy      User?           @relation("UserCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers   User[]          @relation("UserCreator")
+  menuSessions   MenuSession[]
+  auditLogs      AuditLog[]      @relation("AuditActor")
+  actionRequests ActionRequest[] @relation("ActionActor")
+  deploymentRuns DeploymentRun[] @relation("DeploymentTrigger")
+  backupRecords  BackupRecord[]  @relation("BackupTrigger")
+
+  @@index([role, status])
+}
+
+model MenuSession {
+  id             String   @id @default(uuid())
+  userId         String
+  chatId         String
+  messageId      String
+  currentScreen  String
+  contextJson    Json?
+  inputState     String?
+  inputExpiresAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chatId])
+  @@index([currentScreen])
+}
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  actorUserId  String?
+  action       String
+  resourceType String
+  resourceId   String?
+  requestId    String?
+  payloadJson  Json?
+  result       AuditResult
+  errorCode    String?
+  errorMessage String?
+  ipAddress    String?
+  createdAt    DateTime    @default(now())
+  actorUser    User?       @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@index([resourceType, resourceId])
+}
+
+model ActionRequest {
+  id           String              @id @default(uuid())
+  token        String              @unique
+  actorUserId  String
+  actionType   String
+  resourceType String
+  resourceId   String?
+  payloadJson  Json?
+  status       ActionRequestStatus @default(PENDING)
+  expiresAt    DateTime
+  createdAt    DateTime            @default(now())
+  confirmedAt  DateTime?
+  cancelledAt  DateTime?
+  executedAt   DateTime?
+  actorUser    User                @relation("ActionActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([actorUserId, status])
+  @@index([expiresAt])
+}
+
+model DeploymentTarget {
+  id               String          @id @default(uuid())
+  name             String          @unique
+  displayName      String
+  workingDirectory String
+  repositoryUrl    String
+  branch           String
+  composeFile      String
+  composeProject   String
+  healthTargetName String?
+  enabled          Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  runs             DeploymentRun[]
+
+  @@index([enabled])
+}
+
+model DeploymentRun {
+  id              String              @id @default(uuid())
+  targetId        String
+  triggeredById   String
+  status          DeploymentRunStatus @default(QUEUED)
+  previousCommit  String?
+  requestedCommit String?
+  deployedCommit  String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  outputSummary   String?
+  errorMessage    String?
+  createdAt       DateTime            @default(now())
+  target          DeploymentTarget    @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  triggeredBy     User                @relation("DeploymentTrigger", fields: [triggeredById], references: [id], onDelete: Restrict)
+
+  @@index([targetId, createdAt(sort: Desc)])
+  @@index([status])
+}
+
+model BackupRecord {
+  id             String       @id @default(uuid())
+  triggeredById  String?
+  filename       String
+  storagePath    String
+  checksumSha256 String?
+  sizeBytes      BigInt?
+  status         BackupStatus @default(QUEUED)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  errorMessage   String?
+  createdAt      DateTime     @default(now())
+  triggeredBy    User?        @relation("BackupTrigger", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+}
+
+model MonitoringSample {
+  id             String            @id @default(uuid())
+  targetName     String
+  status         HealthCheckStatus
+  cpuPercent     Decimal?          @db.Decimal(5, 2)
+  memoryPercent  Decimal?          @db.Decimal(5, 2)
+  diskPercent    Decimal?          @db.Decimal(5, 2)
+  responseTimeMs Int?
+  metaJson       Json?
+  createdAt      DateTime          @default(now())
+
+  @@index([targetName, createdAt(sort: Desc)])
+}
+
+model AlertEvent {
+  id             String           @id @default(uuid())
+  ruleName       String
+  status         AlertEventStatus
+  summary        String
+  detailsJson    Json?
+  openedAt       DateTime
+  resolvedAt     DateTime?
+  lastNotifiedAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([ruleName, status])
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  valueJson Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

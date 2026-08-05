@@ -10,14 +10,15 @@ Updated: 2026-08-05
 - [x] Add repository governance files: `PLAN.md`, `TASKS.md`, `DECISIONS.md`, `CHANGELOG.md`.
 - [x] Add baseline examples for environment/config files.
 - [x] Run `format`, `lint`, `typecheck`, `test`, `test:e2e`, and `build`.
-- [ ] Commit and push Milestone 0 slice to `main`.
+- [x] Commit and push Milestone 0 slice to `main`.
 
 ## Milestone 1 - Infrastructure
 
-- [ ] Add Prisma schema and initial migration.
-- [ ] Wire PostgreSQL and Redis configs.
-- [ ] Create Dockerfile and Compose assets.
-- [ ] Add CI workflow for install, lint, test, build, and Docker build.
+- [x] Add Prisma schema and initial migration.
+- [x] Wire PostgreSQL and Redis configs.
+- [x] Create Dockerfile and Compose assets.
+- [x] Add CI workflow for install, lint, test, build, and Docker build.
+- [ ] Re-run local `docker compose up` and `docker build` once a Docker daemon is available in the environment.
 
 ## Milestone 2 - Telegram Shell
 

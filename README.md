@@ -5,8 +5,8 @@ TeleOps is a Telegram-based operations bot for managing services running on a VP
 ## Current Status
 
 - Milestone 0 foundation is complete.
-- Current capabilities: strict NestJS baseline, environment validation with Zod, structured logging with Pino, and a `/health` endpoint with unit/e2e coverage.
-- Next milestone: infrastructure wiring for Prisma, PostgreSQL, Redis, Docker assets, and CI.
+- Current capabilities: strict NestJS baseline, environment validation with Zod, structured logging with Pino, `/health` endpoint coverage, and infrastructure assets for Prisma, PostgreSQL, Redis, Docker, and CI.
+- Next milestone: Telegram shell, navigation, and update handling.
 
 ## Tech Stack
 
@@ -16,12 +16,16 @@ TeleOps is a Telegram-based operations bot for managing services running on a VP
 - pnpm
 - Zod
 - Pino / `nestjs-pino`
+- Prisma
+- PostgreSQL
+- Redis
 - Jest + Supertest
 
 ## Local Development
 
 ```bash
 pnpm install
+pnpm prisma:generate
 pnpm start:dev
 ```
 
@@ -31,6 +35,7 @@ pnpm start:dev
 pnpm format
 pnpm lint
 pnpm typecheck
+pnpm prisma:generate
 pnpm test
 pnpm test:e2e
 pnpm build
@@ -41,6 +46,8 @@ pnpm build
 - Copy `.env.example` to `.env`.
 - Fill in Telegram, database, Redis, and deployment-related environment values.
 - Baseline config examples live in `config/*.example.yaml`.
+- Start local infrastructure with `docker compose up -d postgres redis`.
+- Apply the initial schema with `pnpm prisma:migrate:dev --name init`.
 
 ## Planning Artifacts
 

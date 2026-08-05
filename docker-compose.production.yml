@@ -1,0 +1,123 @@
+services:
+  teleops:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_NAME: ${APP_NAME:-TeleOps}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: ${PORT:-3000}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID}
+      TELEGRAM_ALERT_CHAT_ID: ${TELEGRAM_ALERT_CHAT_ID:-}
+      TELEGRAM_MODE: ${TELEGRAM_MODE:-polling}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://teleops:teleops@postgres:5432/teleops?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DOCKER_HOST: ${DOCKER_HOST:-unix:///var/run/docker.sock}
+      DANGEROUS_ACTIONS_ENABLED: ${DANGEROUS_ACTIONS_ENABLED:-false}
+      CONFIRMATION_TTL_SECONDS: ${CONFIRMATION_TTL_SECONDS:-60}
+      ACTION_RATE_LIMIT_PER_MINUTE: ${ACTION_RATE_LIMIT_PER_MINUTE:-20}
+      ALLOWED_CONTAINER_NAMES: ${ALLOWED_CONTAINER_NAMES:-}
+      ALLOWED_COMPOSE_PROJECTS: ${ALLOWED_COMPOSE_PROJECTS:-}
+      DEPLOY_TARGETS_CONFIG_PATH: ${DEPLOY_TARGETS_CONFIG_PATH:-/app/config/deploy-targets.yaml}
+      HEALTH_TARGETS_CONFIG_PATH: ${HEALTH_TARGETS_CONFIG_PATH:-/app/config/health-targets.yaml}
+      ALERT_RULES_CONFIG_PATH: ${ALERT_RULES_CONFIG_PATH:-/app/config/alert-rules.yaml}
+      BACKUP_DIRECTORY: ${BACKUP_DIRECTORY:-/data/backups}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_MAX_TELEGRAM_SIZE_MB: ${BACKUP_MAX_TELEGRAM_SIZE_MB:-20}
+      MONITOR_SAMPLE_INTERVAL_SECONDS: ${MONITOR_SAMPLE_INTERVAL_SECONDS:-60}
+      MONITOR_RETENTION_DAYS: ${MONITOR_RETENTION_DAYS:-7}
+      LIVE_MONITOR_INTERVAL_SECONDS: ${LIVE_MONITOR_INTERVAL_SECONDS:-10}
+      LIVE_MONITOR_MAX_DURATION_SECONDS: ${LIVE_MONITOR_MAX_DURATION_SECONDS:-120}
+      DATABASE_BACKUP_ENABLED: ${DATABASE_BACKUP_ENABLED:-true}
+      DATABASE_RESTORE_ENABLED: ${DATABASE_RESTORE_ENABLED:-false}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+    ports:
+      - '${PORT:-3000}:3000'
+    volumes:
+      - ./config:/app/config:ro
+      - teleops_backups:/data/backups
+    networks:
+      - teleops_internal
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-teleops}
+      POSTGRES_USER: ${POSTGRES_USER:-teleops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-teleops}
+    volumes:
+      - teleops_postgres_data:/var/lib/postgresql/data
+    networks:
+      - teleops_internal
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-teleops} -d ${POSTGRES_DB:-teleops}',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--save', '60', '1', '--loglevel', 'warning']
+    volumes:
+      - teleops_redis_data:/data
+    networks:
+      - teleops_internal
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+networks:
+  teleops_internal:
+    driver: bridge
+
+volumes:
+  teleops_postgres_data:
+  teleops_redis_data:
+  teleops_backups:

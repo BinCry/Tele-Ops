@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule, Params } from 'nestjs-pino';
+import { DatabaseModule } from './database/database.module';
 import { configuration } from './config/configuration';
 import { validateEnvironment } from './config/env.schema';
 import { HealthModule } from './modules/health/health.module';
@@ -40,6 +41,7 @@ const loggerConfig: Params = {
       load: [configuration],
     }),
     LoggerModule.forRoot(loggerConfig),
+    DatabaseModule,
     HealthModule,
   ],
 })

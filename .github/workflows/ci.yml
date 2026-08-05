@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: teleops
+          POSTGRES_USER: teleops
+          POSTGRES_PASSWORD: teleops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U teleops -d teleops"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      APP_NAME: TeleOps CI
+      APP_TIMEZONE: Asia/Ho_Chi_Minh
+      LOG_LEVEL: silent
+      PORT: 3000
+      TELEGRAM_BOT_TOKEN: ci-bot-token
+      TELEGRAM_OWNER_USER_ID: '123456789'
+      TELEGRAM_ALERT_CHAT_ID: ''
+      TELEGRAM_MODE: polling
+      DATABASE_URL: postgresql://teleops:teleops@127.0.0.1:5432/teleops?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DANGEROUS_ACTIONS_ENABLED: 'false'
+      CONFIRMATION_TTL_SECONDS: '60'
+      ACTION_RATE_LIMIT_PER_MINUTE: '20'
+      ALLOWED_CONTAINER_NAMES: ''
+      ALLOWED_COMPOSE_PROJECTS: ''
+      DEPLOY_TARGETS_CONFIG_PATH: /app/config/deploy-targets.yaml
+      HEALTH_TARGETS_CONFIG_PATH: /app/config/health-targets.yaml
+      ALERT_RULES_CONFIG_PATH: /app/config/alert-rules.yaml
+      BACKUP_DIRECTORY: /tmp/teleops-backups
+      BACKUP_RETENTION_DAYS: '7'
+      BACKUP_MAX_TELEGRAM_SIZE_MB: '20'
+      MONITOR_SAMPLE_INTERVAL_SECONDS: '60'
+      MONITOR_RETENTION_DAYS: '7'
+      LIVE_MONITOR_INTERVAL_SECONDS: '10'
+      LIVE_MONITOR_MAX_DURATION_SECONDS: '120'
+      DATABASE_BACKUP_ENABLED: 'true'
+      DATABASE_RESTORE_ENABLED: 'false'
+      ENCRYPTION_KEY: ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma:generate
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - name: Build
+        run: pnpm build
+
+      - name: Docker build
+        run: docker build .
