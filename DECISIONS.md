@@ -38,3 +38,6 @@ Updated: 2026-08-05
 22. First-pass user management prefers safe status transitions over free-form edits: unknown Telegram users self-register as `PENDING`, while admins and owners can only activate or disable managed accounts through confirmation tokens.
 23. Runtime safety toggles for dangerous Docker actions and confirmation TTL are stored in the `Setting` table so operators can adjust safeguards from Telegram without editing env files or restarting the app.
 24. Audit payloads are sanitized before persistence so sensitive fields such as confirmation tokens, API keys, passwords, and authorization headers are never stored in clear text.
+25. The v1 deployment handoff includes concrete YAML examples, runbooks, a threat model, and a dated readiness report in-repo so operators can deploy and recover without relying on chat history.
+26. The production container keeps Prisma CLI available and runs `prisma migrate deploy` before boot so a fresh PostgreSQL instance can reach a valid schema without a separate manual migration step.
+27. `TELEGRAM_MODE=disabled` is a supported runtime mode for smoke validation and container health checks when the app should start without connecting to Telegram.

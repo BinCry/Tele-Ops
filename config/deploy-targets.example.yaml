@@ -1,1 +1,10 @@
-targets: []
+targets:
+  - name: teleops-prod
+    displayName: TeleOps Production
+    workingDirectory: /opt/teleops
+    repositoryUrl: https://github.com/BinCry/Tele-Ops.git
+    branch: main
+    composeFile: docker-compose.yml
+    composeProject: teleops
+    healthTargetName: teleops-http
+    enabled: true

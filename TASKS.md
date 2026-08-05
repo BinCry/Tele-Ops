@@ -18,7 +18,7 @@ Updated: 2026-08-05
 - [x] Wire PostgreSQL and Redis configs.
 - [x] Create Dockerfile and Compose assets.
 - [x] Add CI workflow for install, lint, test, build, and Docker build.
-- [ ] Re-run local `docker compose up` and `docker build` once a Docker daemon is available in the environment.
+- [x] Re-run local `docker compose up` and `docker build` once a Docker daemon is available in the environment.
 
 ## Milestone 2 - Telegram Shell
 
@@ -33,14 +33,14 @@ Updated: 2026-08-05
 ## Remaining Milestones
 
 - [x] M4 Dashboard and server metrics.
-- [ ] M5 Docker management.
+- [x] M5 Docker management.
 - [x] M6 Deployment workflow.
 - [x] M7 Database status and backup.
 - [x] M8 Monitoring and alerts.
 - [x] M9 Users and settings.
 - [x] M10 Audit UI and hardening.
-- [ ] M11 Documentation and deployment guides.
-- [ ] M12 Final validation and deployment readiness.
+- [x] M11 Documentation and deployment guides.
+- [x] M12 Final validation and deployment readiness.
 
 ## In Progress Notes
 
@@ -64,6 +64,11 @@ Updated: 2026-08-05
 - [x] Added runtime `Settings` controls for dangerous Docker actions and confirmation TTL with persisted overrides plus Telegram confirmation tokens.
 - [x] Added audit payload redaction before persistence so confirmation tokens and similar sensitive fields are not stored in clear text.
 - [x] Completed the audit hardening baseline with Telegram audit browsing, logger redaction, payload sanitization, and graceful shutdown hooks.
+- [x] Added production-facing runbooks, architecture docs, threat model notes, readiness report, and concrete YAML config examples.
+- [x] Fixed production container startup by aligning Nest output paths, keeping Prisma CLI in the runtime image, and running `prisma migrate deploy` before boot.
+- [x] Added `TELEGRAM_MODE=disabled` support and strict boolean env parsing so container smoke tests match real runtime behavior.
+- [x] Completed live Docker validation on Wednesday, August 5, 2026 with `docker build .`, `docker compose up -d --build`, healthy service checks, and `docker compose down`.
+
+## Post-v1 Backlog
+
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
-- [ ] Write deployment, rollback, backup, and incident runbooks under `docs/operations`.
-- [ ] Re-run Docker-based validation and capture a final readiness report once a Docker daemon is available.

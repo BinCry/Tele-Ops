@@ -1,1 +1,10 @@
-rules: []
+rules:
+  - name: teleops-http-down
+    displayName: TeleOps HTTP Down
+    targetName: teleops-http
+    severity: critical
+    triggerOnStatuses:
+      - DOWN
+      - DEGRADED
+    cooldownMinutes: 15
+    enabled: true

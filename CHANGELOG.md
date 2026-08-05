@@ -38,3 +38,7 @@
 - Added pending-user onboarding and Telegram confirmation flows for activating or disabling managed users.
 - Added persisted runtime `Settings` overrides plus Telegram confirmation flows for dangerous Docker actions and confirmation TTL updates.
 - Added audit-payload redaction for sensitive keys such as confirmation tokens, API keys, passwords, and authorization fields before persistence.
+- Added deploy, rollback, backup, and incident runbooks plus architecture, threat-model, readiness, and config-example documentation.
+- Added `TELEGRAM_MODE=disabled` support for smoke validation and fixed boolean env parsing so `"false"` no longer becomes truthy in production checks.
+- Fixed production container startup by using the correct Nest output path, retaining Prisma CLI in the runtime image, and applying migrations before boot.
+- Validated the production image and Compose stack end-to-end on Wednesday, August 5, 2026, including healthy `/health` responses from the running container.

@@ -1,6 +1,25 @@
 import { z } from 'zod';
 
 const csvString = z.string().trim().optional().default('');
+const booleanFromEnv = z.preprocess((value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalizedValue = value.trim().toLowerCase();
+
+    if (normalizedValue === 'true') {
+      return true;
+    }
+
+    if (normalizedValue === 'false') {
+      return false;
+    }
+  }
+
+  return value;
+}, z.boolean());
 
 export const environmentSchema = z
   .object({
@@ -25,11 +44,11 @@ export const environmentSchema = z
         'TELEGRAM_OWNER_USER_ID must be a numeric Telegram user id',
       ),
     TELEGRAM_ALERT_CHAT_ID: z.string().trim().optional(),
-    TELEGRAM_MODE: z.enum(['polling']).default('polling'),
+    TELEGRAM_MODE: z.enum(['polling', 'disabled']).default('polling'),
     DATABASE_URL: z.string().url(),
     REDIS_URL: z.string().url(),
     DOCKER_HOST: z.string().trim().min(1),
-    DANGEROUS_ACTIONS_ENABLED: z.coerce.boolean().default(false),
+    DANGEROUS_ACTIONS_ENABLED: booleanFromEnv.default(false),
     CONFIRMATION_TTL_SECONDS: z.coerce
       .number()
       .int()
@@ -74,8 +93,8 @@ export const environmentSchema = z
       .min(10)
       .max(3600)
       .default(120),
-    DATABASE_BACKUP_ENABLED: z.coerce.boolean().default(true),
-    DATABASE_RESTORE_ENABLED: z.coerce.boolean().default(false),
+    DATABASE_BACKUP_ENABLED: booleanFromEnv.default(true),
+    DATABASE_RESTORE_ENABLED: booleanFromEnv.default(false),
     ENCRYPTION_KEY: z.string().optional().default(''),
   })
   .superRefine((env, ctx) => {

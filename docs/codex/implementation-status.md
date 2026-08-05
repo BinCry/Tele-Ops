@@ -15,6 +15,8 @@ Updated: 2026-08-05
 - Milestone 8 monitoring, alerts, and background alert evaluation are complete and pushed.
 - Milestone 9 user onboarding, activation/disable flows, and runtime settings controls are complete and pushed.
 - Milestone 10 audit visibility and hardening are complete and pushed.
+- Milestone 11 documentation and deployment guides are complete and pushed.
+- Milestone 12 final validation and deployment readiness are complete and pushed.
 - Unknown Telegram users now self-register as `PENDING`, and admins or owners can activate or disable those accounts from the Telegram `Users` screen with confirmation tokens.
 - The Telegram `Settings` screen now exposes persisted runtime overrides for dangerous Docker actions and confirmation TTL, with the same single-use confirmation-token flow used by other sensitive mutations.
 - Audit payload persistence now redacts sensitive keys such as confirmation tokens, API keys, passwords, and authorization headers before records are written to the database.
@@ -24,9 +26,10 @@ Updated: 2026-08-05
 - Backup operators can now request the latest successful artifact again from Telegram, but only if the file still exists locally and still fits the Telegram size limit.
 - Alert rules now load from YAML, create/resolve `AlertEvent` records, suppress repeat notifications inside cooldown windows, and surface active alerts in the monitoring screen.
 - Alert evaluation now also runs in the background on startup and on the configured monitoring interval, independent of manual Telegram refreshes.
+- The repository now includes architecture notes, a threat model, concrete config examples, operator runbooks, and a dated readiness report under `docs/`.
+- Production container startup now applies migrations before boot, supports `TELEGRAM_MODE=disabled` for smoke validation, and has been verified with a healthy `/health` response inside Docker Compose on Wednesday, August 5, 2026.
 - Prisma schema, seed flow, migration SQL, Compose files, Dockerfile, CI workflow, Telegram shell, access control, server visibility, and Docker read-only visibility are present.
 
 ## Next Checkpoint
 
-- Author Milestone 11 operations, deployment, rollback, backup, and incident runbooks.
-- Run Milestone 12 live Docker/Compose validation and capture a final readiness report in an environment with a Docker daemon.
+- Post-v1 enhancements can focus on queued Docker execution and richer per-container drill-down.
