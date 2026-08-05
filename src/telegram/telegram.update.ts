@@ -1,6 +1,7 @@
 import { AuditResult, UserRole } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { Input } from 'telegraf';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { ActionRequestService } from 'src/modules/action-request/action-request.service';
 import { AuthService } from 'src/modules/auth/auth.service';
@@ -1093,6 +1094,9 @@ export class TelegramUpdate {
 
       if (resolution.request.actionType === 'backup.create') {
         const backupResult = await this.backupService.createBackup(actorUserId);
+        const deliveryDecision = this.backupService.getTelegramDeliveryDecision(
+          backupResult.sizeBytes,
+        );
 
         await this.actionRequestService.markExecuted(resolution.request.id);
         await this.auditService.record({
@@ -1109,7 +1113,12 @@ export class TelegramUpdate {
         await context.answerCbQuery('Đã tạo backup thành công.');
         await this.menuRenderer.renderScreen(
           context,
-          buildBackupSuccessScreen(backupResult),
+          buildBackupSuccessScreen(backupResult, deliveryDecision),
+        );
+        await this.sendBackupArtifactIfEligible(
+          context,
+          backupResult,
+          deliveryDecision,
         );
         return;
       }
@@ -1241,6 +1250,46 @@ export class TelegramUpdate {
       value as TelegramCallback,
     );
   }
+
+  private async sendBackupArtifactIfEligible(
+    context: TelegramBotContext,
+    backupResult: BackupExecutionResult,
+    deliveryDecision: {
+      eligible: boolean;
+      maxTelegramSizeMb: number;
+    },
+  ): Promise<void> {
+    if (!deliveryDecision.eligible) {
+      await context.reply(
+        `📦 Backup đã được tạo nhưng không gửi tự động vì vượt giới hạn ${deliveryDecision.maxTelegramSizeMb} MB của Telegram.`,
+        {
+          parse_mode: 'HTML',
+        },
+      );
+      return;
+    }
+
+    try {
+      await context.replyWithDocument(
+        Input.fromLocalFile(backupResult.storagePath, backupResult.filename),
+        {
+          caption: `💾 Backup: <code>${escapeHtml(backupResult.filename)}</code>`,
+          parse_mode: 'HTML',
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        { err: error, backupFilename: backupResult.filename },
+        'Backup artifact delivery to Telegram failed.',
+      );
+      await context.reply(
+        '⚠️ Backup đã tạo thành công nhưng TeleOps chưa gửi được file vào Telegram.',
+        {
+          parse_mode: 'HTML',
+        },
+      );
+    }
+  }
 }
 
 function buildDockerSuccessScreen(
@@ -1267,7 +1316,13 @@ function buildDockerSuccessScreen(
   };
 }
 
-function buildBackupSuccessScreen(backupResult: BackupExecutionResult): {
+function buildBackupSuccessScreen(
+  backupResult: BackupExecutionResult,
+  deliveryDecision: {
+    eligible: boolean;
+    maxTelegramSizeMb: number;
+  },
+): {
   text: string;
   keyboard: ReturnType<typeof buildKeyboard>;
 } {
@@ -1278,6 +1333,9 @@ function buildBackupSuccessScreen(backupResult: BackupExecutionResult): {
       `File: <code>${escapeHtml(backupResult.filename)}</code>`,
       `Kích thước: <b>${formatBigIntBytes(backupResult.sizeBytes)}</b>`,
       `SHA-256: <code>${escapeHtml(backupResult.checksumSha256)}</code>`,
+      deliveryDecision.eligible
+        ? 'Telegram: <b>Sẽ gửi file backup ở tin nhắn kế tiếp</b>'
+        : `Telegram: <b>Không gửi tự động, vượt giới hạn ${deliveryDecision.maxTelegramSizeMb} MB</b>`,
     ].join('\n'),
     keyboard: buildKeyboard(
       [],

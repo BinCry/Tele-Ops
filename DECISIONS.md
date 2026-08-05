@@ -30,3 +30,4 @@ Updated: 2026-08-05
 14. Telegram deployment actions reuse the same persisted confirmation-token model as Docker and backup flows so risky operations stay actor-bound, time-bounded, and fully auditable.
 15. Monitoring targets are sourced from validated YAML and probed through a dedicated HTTP gateway so Telegram can show live health without embedding fetch logic in handlers.
 16. Deployments now refuse to start when the same target already has a `RUNNING` record and validate an optional linked health target before the run is marked successful.
+17. Successful backups now attempt direct Telegram document delivery only when the artifact size is within the configured limit, avoiding oversized upload failures in the main action flow.

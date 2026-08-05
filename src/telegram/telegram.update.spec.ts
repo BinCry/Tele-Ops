@@ -26,10 +26,12 @@ function createMockContext(
 ): {
   context: TelegramBotContext;
   replyMock: jest.Mock;
+  replyWithDocumentMock: jest.Mock;
   editMessageTextMock: jest.Mock;
   answerCbQueryMock: jest.Mock;
 } {
   const replyMock = jest.fn().mockResolvedValue(undefined);
+  const replyWithDocumentMock = jest.fn().mockResolvedValue(undefined);
   const editMessageTextMock = jest.fn().mockResolvedValue(undefined);
   const answerCbQueryMock = jest.fn().mockResolvedValue(undefined);
 
@@ -40,6 +42,7 @@ function createMockContext(
         ? { update_id: 1, callback_query: { id: 'callback-id' } }
         : { update_id: 1, message: { message_id: 1 } },
     reply: replyMock,
+    replyWithDocument: replyWithDocumentMock,
     editMessageText: editMessageTextMock,
     answerCbQuery: answerCbQueryMock,
   };
@@ -47,6 +50,7 @@ function createMockContext(
   return {
     context: context as unknown as TelegramBotContext,
     replyMock,
+    replyWithDocumentMock,
     editMessageTextMock,
     answerCbQueryMock,
   };
@@ -69,6 +73,7 @@ describe('TelegramUpdate', () => {
     getDatabaseStatus: jest.Mock;
     getBackupOverview: jest.Mock;
     createBackup: jest.Mock;
+    getTelegramDeliveryDecision: jest.Mock;
   };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
   let deploymentService: { runDeployment: jest.Mock };
@@ -111,6 +116,10 @@ describe('TelegramUpdate', () => {
       getDatabaseStatus: jest.fn(),
       getBackupOverview: jest.fn(),
       createBackup: jest.fn(),
+      getTelegramDeliveryDecision: jest.fn().mockReturnValue({
+        eligible: false,
+        maxTelegramSizeMb: 20,
+      }),
     };
     dashboardService = {
       getDashboardSnapshot: jest.fn(),
@@ -162,6 +171,7 @@ describe('TelegramUpdate', () => {
       new TelegramMenuRenderer(),
       {
         error: jest.fn(),
+        warn: jest.fn(),
       } as unknown as PinoLogger,
     );
   });
@@ -539,8 +549,12 @@ describe('TelegramUpdate', () => {
   });
 
   it('executes backup creation after confirmation', async () => {
-    const { context, answerCbQueryMock, editMessageTextMock } =
-      createMockContext(123456789, 'callback');
+    const {
+      context,
+      answerCbQueryMock,
+      editMessageTextMock,
+      replyWithDocumentMock,
+    } = createMockContext(123456789, 'callback');
 
     authService.authorizeTelegramContext.mockResolvedValue({
       status: 'authorized',
@@ -567,6 +581,10 @@ describe('TelegramUpdate', () => {
       checksumSha256: 'a'.repeat(64),
       sizeBytes: BigInt(1024),
     });
+    backupService.getTelegramDeliveryDecision.mockReturnValue({
+      eligible: true,
+      maxTelegramSizeMb: 20,
+    });
 
     await telegramUpdate.handleCallback(
       context,
@@ -581,6 +599,7 @@ describe('TelegramUpdate', () => {
       }),
     );
     expect(backupService.createBackup).toHaveBeenCalledWith('user-1');
+    expect(replyWithDocumentMock).toHaveBeenCalled();
   });
 
   it('executes deployment after confirmation', async () => {

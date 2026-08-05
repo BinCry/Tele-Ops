@@ -40,6 +40,11 @@ export type BackupExecutionResult = {
   sizeBytes: bigint;
 };
 
+export type BackupDeliveryDecision = {
+  eligible: boolean;
+  maxTelegramSizeMb: number;
+};
+
 @Injectable()
 export class BackupService {
   constructor(
@@ -179,6 +184,19 @@ export class BackupService {
       });
       throw error;
     }
+  }
+
+  getTelegramDeliveryDecision(sizeBytes: bigint): BackupDeliveryDecision {
+    const maxTelegramSizeMb = this.configService.get<number>(
+      'BACKUP_MAX_TELEGRAM_SIZE_MB',
+      20,
+    );
+    const maxTelegramSizeBytes = BigInt(maxTelegramSizeMb) * 1024n * 1024n;
+
+    return {
+      eligible: sizeBytes <= maxTelegramSizeBytes,
+      maxTelegramSizeMb,
+    };
   }
 
   private async pruneExpiredBackups(): Promise<void> {
