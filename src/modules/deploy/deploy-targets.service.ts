@@ -5,7 +5,10 @@ import yaml from 'js-yaml';
 import { z } from 'zod';
 
 const deployTargetSchema = z.object({
-  name: z.string().trim().min(1),
+  name: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9-]{1,32}$/),
   displayName: z.string().trim().min(1),
   workingDirectory: z.string().trim().min(1),
   repositoryUrl: z.string().trim().min(1),
@@ -35,6 +38,39 @@ export class DeployTargetsService {
   constructor(private readonly configService: ConfigService) {}
 
   async getOverview(): Promise<DeployOverview> {
+    const config = await this.loadConfig();
+
+    return {
+      configPath: config.configPath,
+      fileExists: config.fileExists,
+      enabledTargetCount: config.targets.filter((target) => target.enabled)
+        .length,
+      disabledTargetCount: config.targets.filter((target) => !target.enabled)
+        .length,
+      targets: config.targets,
+    };
+  }
+
+  async getEnabledTargetByName(name: string): Promise<DeployTargetSummary> {
+    const config = await this.loadConfig();
+    const target = config.targets.find((item) => item.name === name);
+
+    if (!target) {
+      throw new Error(`Deployment target "${name}" is not configured.`);
+    }
+
+    if (!target.enabled) {
+      throw new Error(`Deployment target "${name}" is disabled.`);
+    }
+
+    return target;
+  }
+
+  private async loadConfig(): Promise<{
+    configPath: string;
+    fileExists: boolean;
+    targets: DeployTargetSummary[];
+  }> {
     const configPath = this.configService.get<string>(
       'paths.deployTargetsConfig',
       '/app/config/deploy-targets.yaml',
@@ -51,8 +87,6 @@ export class DeployTargetsService {
       return {
         configPath,
         fileExists: true,
-        enabledTargetCount: targets.filter((target) => target.enabled).length,
-        disabledTargetCount: targets.filter((target) => !target.enabled).length,
         targets,
       };
     } catch (error) {
@@ -60,8 +94,6 @@ export class DeployTargetsService {
         return {
           configPath,
           fileExists: false,
-          enabledTargetCount: 0,
-          disabledTargetCount: 0,
           targets: [],
         };
       }

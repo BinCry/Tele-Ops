@@ -26,3 +26,4 @@ Updated: 2026-08-05
 10. Backup execution is implemented behind a dedicated PostgreSQL backup gateway so `pg_dump` invocation, checksuming, and retention cleanup stay outside Telegram transport code.
 11. Backup creation reuses the same confirmation-token flow as Docker mutations so destructive operational actions share one audit and expiry model.
 12. Deployment targets are sourced from a validated YAML file first so production-safe target definitions stay explicit and out of Telegram free-form input.
+13. Deployment command execution is isolated behind a safe process runner so file-path validation and argument construction stay centralized before Telegram is allowed to trigger real deploys.

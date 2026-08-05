@@ -26,3 +26,4 @@
 - Added `PostgresBackupGateway` plus backup execution orchestration with persistent records, SHA-256 checksum generation, and retention cleanup.
 - Added Telegram backup creation confirmation flow and post-run success rendering on the `Backup` screen.
 - Added `DeployTargetsService` with YAML parsing/validation and a live Telegram `Deploy` overview screen for configured targets.
+- Added `DeploymentService` and `SafeProcessRunner` foundation for validated git/docker compose deployment execution with persisted run records.
