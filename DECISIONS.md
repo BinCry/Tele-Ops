@@ -33,3 +33,4 @@ Updated: 2026-08-05
 17. Successful backups now attempt direct Telegram document delivery only when the artifact size is within the configured limit, avoiding oversized upload failures in the main action flow.
 18. Alert rules are evaluated from the live monitoring snapshot first, with `AlertEvent` persistence and cooldown-aware notification suppression, before adding a separate background scheduler.
 19. Background alert evaluation now runs inside `AlertsModule` on startup and on the shared monitoring interval, while skipping the test environment to keep automated test runs deterministic.
+20. Deployment rollback reuses the latest reversible `DeploymentRun` history, restoring the previous commit through the same confirmation, locking, and post-action health-check pipeline as forward deploys.

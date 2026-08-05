@@ -34,7 +34,7 @@ Updated: 2026-08-05
 
 - [x] M4 Dashboard and server metrics.
 - [ ] M5 Docker management.
-- [ ] M6 Deployment workflow.
+- [x] M6 Deployment workflow.
 - [ ] M7 Database status and backup.
 - [x] M8 Monitoring and alerts.
 - [ ] M9 Users and settings.
@@ -58,6 +58,6 @@ Updated: 2026-08-05
 - [x] Added Telegram backup artifact delivery for eligible backup sizes with configured size-limit fallback messaging.
 - [x] Added alert rule config loading, `AlertEvent` open/resolve lifecycle, cooldown-aware notification suppression, and monitoring-integrated alert summaries.
 - [x] Added background alert evaluation scheduling so monitoring samples and alert lifecycle keep running without a manual Telegram refresh.
+- [x] Added confirmed deployment rollback from Telegram using persisted deployment history, commit checkout, and post-rollback health validation.
 - [ ] Finish backup artifact delivery and download constraints.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
-- [ ] Add deployment rollback flow.

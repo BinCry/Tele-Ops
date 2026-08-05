@@ -78,7 +78,11 @@ describe('TelegramUpdate', () => {
     getTelegramDeliveryDecision: jest.Mock;
   };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
-  let deploymentService: { runDeployment: jest.Mock };
+  let deploymentService: {
+    getRollbackPreview: jest.Mock;
+    rollbackDeployment: jest.Mock;
+    runDeployment: jest.Mock;
+  };
   let deployTargetsService: {
     getOverview: jest.Mock;
     getEnabledTargetByName: jest.Mock;
@@ -130,6 +134,8 @@ describe('TelegramUpdate', () => {
       getDashboardSnapshot: jest.fn(),
     };
     deploymentService = {
+      getRollbackPreview: jest.fn(),
+      rollbackDeployment: jest.fn(),
       runDeployment: jest.fn(),
     };
     deployTargetsService = {
@@ -437,6 +443,64 @@ describe('TelegramUpdate', () => {
     );
   });
 
+  it('creates a confirmation flow for deploy rollback requests', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    deploymentService.getRollbackPreview.mockResolvedValue({
+      targetName: 'TeleOps Production',
+      currentCommit: '2222222222222222222222222222222222222222',
+      rollbackCommit: '1111111111111111111111111111111111111111',
+      latestRunStatus: 'SUCCESS',
+    });
+    deployTargetsService.getEnabledTargetByName.mockResolvedValue({
+      name: 'teleops-prod',
+      displayName: 'TeleOps Production',
+      workingDirectory: '/opt/teleops',
+      repositoryUrl: 'https://github.com/BinCry/Tele-Ops.git',
+      branch: 'main',
+      composeFile: 'docker-compose.production.yml',
+      composeProject: 'teleops',
+      healthTargetName: 'teleops-http',
+      enabled: true,
+    });
+    actionRequestService.createPendingRequest.mockResolvedValue({
+      id: 'request-rollback-1',
+      token: '6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:deploy:rollback:teleops-prod',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      expect.stringContaining('rollback deployment'),
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('1111111111111111111111111111111111111111'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+    expect(actionRequestService.createPendingRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: 'deploy.rollback',
+        resourceId: 'teleops-prod',
+      }),
+    );
+  });
+
   it('renders the deploy overview screen for authorized users', async () => {
     const { context, answerCbQueryMock, editMessageTextMock } =
       createMockContext(123456789, 'callback');
@@ -499,6 +563,11 @@ describe('TelegramUpdate', () => {
     expect(firstCall?.[1].reply_markup.inline_keyboard.flat()).toContainEqual(
       expect.objectContaining({
         callback_data: 'action:deploy:run:teleops-prod',
+      }),
+    );
+    expect(firstCall?.[1].reply_markup.inline_keyboard.flat()).toContainEqual(
+      expect.objectContaining({
+        callback_data: 'action:deploy:rollback:teleops-prod',
       }),
     );
   });
@@ -677,6 +746,56 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('TeleOps Production'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('executes deployment rollback after confirmation', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.resolveForActor.mockResolvedValue({
+      status: 'ready',
+      request: {
+        id: 'request-rollback-1',
+        actionType: 'deploy.rollback',
+        resourceType: 'deployment_target',
+        resourceId: 'teleops-prod',
+      },
+    });
+    deploymentService.rollbackDeployment.mockResolvedValue({
+      targetName: 'TeleOps Production',
+      previousCommit: '2222222222222222222222222222222222222222',
+      rolledBackToCommit: '1111111111111111111111111111111111111111',
+      outputSummary: 'git checkout 1111111 && docker compose up -d --build',
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:confirm:6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      expect.stringContaining('rollback deployment'),
+    );
+    expect(deploymentService.rollbackDeployment).toHaveBeenCalledWith(
+      'teleops-prod',
+      'user-1',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('1111111111111111111111111111111111111111'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),

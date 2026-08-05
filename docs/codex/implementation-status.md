@@ -20,6 +20,7 @@ Updated: 2026-08-05
 - Telegram-triggered deployment confirmation and execution are implemented locally and verified.
 - Monitoring target config loading, live HTTP probes, persisted samples, and a Telegram monitoring screen are implemented locally and verified.
 - Deployment execution now blocks overlapping `RUNNING` targets and validates optional post-deploy health checks before success is recorded.
+- Deployment rollback now restores the latest reversible commit from deployment history, reuses the same confirmation and locking flow, and validates health again after rollback.
 - Backup execution now attempts direct Telegram artifact delivery when the file stays within the configured Telegram size limit.
 - Alert rules now load from YAML, create/resolve `AlertEvent` records, suppress repeat notifications inside cooldown windows, and surface active alerts in the monitoring screen.
 - Alert evaluation now also runs in the background on startup and on the configured monitoring interval, independent of manual Telegram refreshes.
@@ -27,5 +28,5 @@ Updated: 2026-08-05
 
 ## Next Checkpoint
 
-- Commit and push the background alert evaluation slice.
-- Continue with deployment rollback, richer backup constraints, user/settings management, and remaining production-readiness gaps.
+- Commit and push the deployment rollback slice.
+- Continue with richer backup constraints, user/settings management, and remaining production-readiness gaps.

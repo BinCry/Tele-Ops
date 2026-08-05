@@ -24,6 +24,7 @@ export type DockerActionCallbackPayload = {
 
 const DOCKER_ACTION_PREFIX = 'action:docker';
 const DEPLOY_RUN_PREFIX = 'action:deploy:run';
+const DEPLOY_ROLLBACK_PREFIX = 'action:deploy:rollback';
 const BACKUP_CREATE_CALLBACK = 'action:backup:create';
 const ACTION_CONFIRM_PREFIX = 'action:confirm';
 const ACTION_CANCEL_PREFIX = 'action:cancel';
@@ -66,6 +67,15 @@ export function buildDeployRunCallback(targetName: string): string {
 
 export function parseDeployRunCallback(value: string): string | null {
   const match = value.match(/^action:deploy:run:([a-z0-9-]{1,32})$/);
+  return match?.[1] ?? null;
+}
+
+export function buildDeployRollbackCallback(targetName: string): string {
+  return `${DEPLOY_ROLLBACK_PREFIX}:${targetName}`;
+}
+
+export function parseDeployRollbackCallback(value: string): string | null {
+  const match = value.match(/^action:deploy:rollback:([a-z0-9-]{1,32})$/);
   return match?.[1] ?? null;
 }
 

@@ -14,6 +14,8 @@ import {
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import {
   DeploymentExecutionResult,
+  DeploymentRollbackPreview,
+  DeploymentRollbackResult,
   DeploymentService,
 } from 'src/modules/deploy/deployment.service';
 import { DeployTargetsService } from 'src/modules/deploy/deploy-targets.service';
@@ -28,11 +30,13 @@ import {
   buildActionCancelCallback,
   buildActionConfirmCallback,
   buildBackupCreateCallback,
+  buildDeployRollbackCallback,
   buildDeployRunCallback,
   buildDockerActionCallback,
   isBackupCreateCallback,
   parseActionCancelCallback,
   parseActionConfirmCallback,
+  parseDeployRollbackCallback,
   parseDeployRunCallback,
   parseDockerActionCallback,
   TELEGRAM_CALLBACKS,
@@ -171,6 +175,7 @@ export class TelegramUpdate {
     const dockerActionPayload = parseDockerActionCallback(callbackData);
     const backupCreateRequested = isBackupCreateCallback(callbackData);
     const deployRunTargetName = parseDeployRunCallback(callbackData);
+    const deployRollbackTargetName = parseDeployRollbackCallback(callbackData);
     const confirmToken = parseActionConfirmCallback(callbackData);
     const cancelToken = parseActionCancelCallback(callbackData);
     const navigationCallback = this.isNavigationCallback(callbackData)
@@ -182,6 +187,7 @@ export class TelegramUpdate {
       !dockerActionPayload &&
       !backupCreateRequested &&
       !deployRunTargetName &&
+      !deployRollbackTargetName &&
       !confirmToken &&
       !cancelToken
     ) {
@@ -288,6 +294,16 @@ export class TelegramUpdate {
         authorizationResult.user.id,
         authorizationResult.user.role,
         deployRunTargetName,
+      );
+      return;
+    }
+
+    if (deployRollbackTargetName) {
+      await this.handleDeployRollbackRequest(
+        context,
+        authorizationResult.user.id,
+        authorizationResult.user.role,
+        deployRollbackTargetName,
       );
       return;
     }
@@ -428,10 +444,16 @@ export class TelegramUpdate {
           )
             ? deployOverview.targets
                 .filter((target) => target.enabled)
-                .map((target) => ({
-                  text: `🚀 ${target.displayName}`,
-                  callback_data: buildDeployRunCallback(target.name),
-                }))
+                .flatMap((target) => [
+                  {
+                    text: `🚀 ${target.displayName}`,
+                    callback_data: buildDeployRunCallback(target.name),
+                  },
+                  {
+                    text: `↩️ Rollback ${target.displayName}`,
+                    callback_data: buildDeployRollbackCallback(target.name),
+                  },
+                ])
             : [],
           [
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
@@ -1042,6 +1064,100 @@ export class TelegramUpdate {
     });
   }
 
+  private async handleDeployRollbackRequest(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+    targetName: string,
+  ): Promise<void> {
+    if (!this.rbacService.hasPermission(role, PERMISSIONS.deployRun)) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    let rollbackPreview: DeploymentRollbackPreview;
+
+    try {
+      rollbackPreview =
+        await this.deploymentService.getRollbackPreview(targetName);
+    } catch (error) {
+      await context.answerCbQuery(
+        error instanceof Error
+          ? `Không thể chuẩn bị rollback: ${error.message}`
+          : 'Không thể chuẩn bị rollback.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const target =
+      await this.deployTargetsService.getEnabledTargetByName(targetName);
+    const actionRequest = await this.actionRequestService.createPendingRequest({
+      actorUserId,
+      actionType: 'deploy.rollback',
+      resourceType: 'deployment_target',
+      resourceId: target.name,
+      payloadJson: {
+        displayName: target.displayName,
+        branch: target.branch,
+        composeProject: target.composeProject,
+        currentCommit: rollbackPreview.currentCommit,
+        rollbackCommit: rollbackPreview.rollbackCommit,
+      },
+    });
+
+    await this.auditService.record({
+      actorUserId,
+      action: 'telegram.deploy.rollback.request',
+      resourceType: 'deployment_target',
+      resourceId: target.name,
+      payloadJson: {
+        branch: target.branch,
+        composeProject: target.composeProject,
+        currentCommit: rollbackPreview.currentCommit,
+        rollbackCommit: rollbackPreview.rollbackCommit,
+        token: actionRequest.token,
+      },
+      result: AuditResult.STARTED,
+    });
+    await context.answerCbQuery('Cần xác nhận rollback deployment.');
+    await this.menuRenderer.renderScreen(context, {
+      text: [
+        '⚠️ <b>Xác nhận rollback deployment</b>',
+        '',
+        `Target: <b>${escapeHtml(target.displayName)}</b>`,
+        `Branch: <b>${escapeHtml(target.branch)}</b>`,
+        `Compose project: <b>${escapeHtml(target.composeProject)}</b>`,
+        `Commit hiện tại: <code>${escapeHtml(rollbackPreview.currentCommit)}</code>`,
+        `Commit sẽ rollback tới: <code>${escapeHtml(rollbackPreview.rollbackCommit)}</code>`,
+        'TeleOps sẽ checkout commit trước đó, chạy docker compose up -d --build, và kiểm tra health target nếu có.',
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [
+            {
+              text: '✅ Xác nhận',
+              callback_data: buildActionConfirmCallback(actionRequest.token),
+            },
+            {
+              text: '❌ Hủy',
+              callback_data: buildActionCancelCallback(actionRequest.token),
+            },
+          ],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    });
+  }
+
   private async handleConfirmationCallback(
     context: TelegramBotContext,
     actorUserId: string,
@@ -1168,6 +1284,35 @@ export class TelegramUpdate {
         await this.menuRenderer.renderScreen(
           context,
           buildDeploySuccessScreen(deploymentResult),
+        );
+        return;
+      }
+
+      if (
+        resolution.request.actionType === 'deploy.rollback' &&
+        resolution.request.resourceId
+      ) {
+        const rollbackResult = await this.deploymentService.rollbackDeployment(
+          resolution.request.resourceId,
+          actorUserId,
+        );
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId,
+          action: 'telegram.deploy.rollback.execute',
+          resourceType: 'deployment_target',
+          resourceId: resolution.request.resourceId,
+          payloadJson: {
+            previousCommit: rollbackResult.previousCommit,
+            rolledBackToCommit: rollbackResult.rolledBackToCommit,
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã rollback deployment thành công.');
+        await this.menuRenderer.renderScreen(
+          context,
+          buildRollbackSuccessScreen(rollbackResult),
         );
         return;
       }
@@ -1398,11 +1543,40 @@ function buildDeploySuccessScreen(
   };
 }
 
+function buildRollbackSuccessScreen(rollbackResult: DeploymentRollbackResult): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  return {
+    text: [
+      '✅ <b>Rollback deployment thành công</b>',
+      '',
+      `Target: <b>${escapeHtml(rollbackResult.targetName)}</b>`,
+      `Commit trước rollback: <code>${escapeHtml(rollbackResult.previousCommit)}</code>`,
+      `Commit đã khôi phục: <code>${escapeHtml(rollbackResult.rolledBackToCommit)}</code>`,
+      ...(rollbackResult.outputSummary
+        ? [
+            '',
+            '<b>Tổng kết output</b>',
+            `<code>${escapeHtml(rollbackResult.outputSummary)}</code>`,
+          ]
+        : []),
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: '🚀 Deploy', callback_data: TELEGRAM_CALLBACKS.deploy }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
+}
+
 function buildCancelledScreen(actionType: string): {
   text: string;
   keyboard: ReturnType<typeof buildKeyboard>;
 } {
-  if (actionType === 'deploy.run') {
+  if (actionType.startsWith('deploy.')) {
     return {
       text: [
         '❌ <b>Đã hủy thao tác</b>',
@@ -1531,7 +1705,7 @@ function getPermissionForActionType(actionType: string): Permission | null {
     return PERMISSIONS.backupRun;
   }
 
-  if (actionType === 'deploy.run') {
+  if (actionType === 'deploy.run' || actionType === 'deploy.rollback') {
     return PERMISSIONS.deployRun;
   }
 

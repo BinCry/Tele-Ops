@@ -33,3 +33,4 @@
 - Added Telegram backup artifact delivery for eligible backup sizes plus explicit fallback messaging when a backup exceeds the configured Telegram limit.
 - Added alert rule config loading, persisted `AlertEvent` open/resolve transitions, cooldown-aware repeat suppression, and monitoring-integrated alert summaries.
 - Added a background alert evaluation runner that reuses the monitoring cadence, skips the test environment, and keeps alert state moving without manual Telegram interaction.
+- Added Telegram-triggered deployment rollback that reuses persisted deployment history, enforces active-run locking, and validates health again after the restored release is applied.

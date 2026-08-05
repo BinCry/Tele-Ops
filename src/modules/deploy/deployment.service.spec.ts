@@ -1,4 +1,4 @@
-import { HealthCheckStatus } from '@prisma/client';
+import { DeploymentRunStatus, HealthCheckStatus } from '@prisma/client';
 import { HealthTargetsService } from 'src/modules/monitoring/health-targets.service';
 import { HttpHealthGateway } from 'src/modules/monitoring/http-health.gateway';
 import { DeploymentService } from './deployment.service';
@@ -7,20 +7,32 @@ import {
   SafeProcessRunner,
 } from './safe-process-runner.service';
 
+const deployTarget = {
+  name: 'teleops-prod',
+  displayName: 'TeleOps Production',
+  workingDirectory: '/opt/teleops',
+  repositoryUrl: 'https://github.com/BinCry/Tele-Ops.git',
+  branch: 'main',
+  composeFile: 'docker-compose.production.yml',
+  composeProject: 'teleops',
+  healthTargetName: 'teleops-http',
+  enabled: true,
+};
+
+const healthTarget = {
+  name: 'teleops-http',
+  displayName: 'TeleOps HTTP',
+  url: 'https://teleops.example.com/health',
+  method: 'GET',
+  expectedStatus: 200,
+  timeoutMs: 4000,
+  enabled: true,
+};
+
 describe('DeploymentService', () => {
   it('runs a configured deployment, validates health, and stores a successful run', async () => {
     const deployTargetsService = {
-      getEnabledTargetByName: jest.fn().mockResolvedValue({
-        name: 'teleops-prod',
-        displayName: 'TeleOps Production',
-        workingDirectory: '/opt/teleops',
-        repositoryUrl: 'https://github.com/BinCry/Tele-Ops.git',
-        branch: 'main',
-        composeFile: 'docker-compose.production.yml',
-        composeProject: 'teleops',
-        healthTargetName: 'teleops-http',
-        enabled: true,
-      }),
+      getEnabledTargetByName: jest.fn().mockResolvedValue(deployTarget),
     };
     const prismaService = {
       deploymentTarget: {
@@ -40,15 +52,7 @@ describe('DeploymentService', () => {
       HealthTargetsService,
       'getEnabledTargetByName'
     > = {
-      getEnabledTargetByName: jest.fn().mockResolvedValue({
-        name: 'teleops-http',
-        displayName: 'TeleOps HTTP',
-        url: 'https://teleops.example.com/health',
-        method: 'GET',
-        expectedStatus: 200,
-        timeoutMs: 4000,
-        enabled: true,
-      }),
+      getEnabledTargetByName: jest.fn().mockResolvedValue(healthTarget),
     };
     const httpHealthGateway: Pick<HttpHealthGateway, 'checkTarget'> = {
       checkTarget: jest.fn().mockResolvedValue({
@@ -98,15 +102,8 @@ describe('DeploymentService', () => {
   it('blocks a deployment when the target already has a running execution', async () => {
     const deployTargetsService = {
       getEnabledTargetByName: jest.fn().mockResolvedValue({
-        name: 'teleops-prod',
-        displayName: 'TeleOps Production',
-        workingDirectory: '/opt/teleops',
-        repositoryUrl: 'https://github.com/BinCry/Tele-Ops.git',
-        branch: 'main',
-        composeFile: 'docker-compose.production.yml',
-        composeProject: 'teleops',
+        ...deployTarget,
         healthTargetName: undefined,
-        enabled: true,
       }),
     };
     const prismaService = {
@@ -157,17 +154,7 @@ describe('DeploymentService', () => {
 
   it('marks the deployment as failed when post-deploy health validation fails', async () => {
     const deployTargetsService = {
-      getEnabledTargetByName: jest.fn().mockResolvedValue({
-        name: 'teleops-prod',
-        displayName: 'TeleOps Production',
-        workingDirectory: '/opt/teleops',
-        repositoryUrl: 'https://github.com/BinCry/Tele-Ops.git',
-        branch: 'main',
-        composeFile: 'docker-compose.production.yml',
-        composeProject: 'teleops',
-        healthTargetName: 'teleops-http',
-        enabled: true,
-      }),
+      getEnabledTargetByName: jest.fn().mockResolvedValue(deployTarget),
     };
     const prismaService = {
       deploymentTarget: {
@@ -187,15 +174,7 @@ describe('DeploymentService', () => {
       HealthTargetsService,
       'getEnabledTargetByName'
     > = {
-      getEnabledTargetByName: jest.fn().mockResolvedValue({
-        name: 'teleops-http',
-        displayName: 'TeleOps HTTP',
-        url: 'https://teleops.example.com/health',
-        method: 'GET',
-        expectedStatus: 200,
-        timeoutMs: 4000,
-        enabled: true,
-      }),
+      getEnabledTargetByName: jest.fn().mockResolvedValue(healthTarget),
     };
     const httpHealthGateway: Pick<HttpHealthGateway, 'checkTarget'> = {
       checkTarget: jest.fn().mockResolvedValue({
@@ -244,5 +223,225 @@ describe('DeploymentService', () => {
       | undefined;
 
     expect(updateCall?.[0].data.status).toBe('FAILED');
+  });
+
+  it('returns rollback preview from the latest reversible deployment run', async () => {
+    const deployTargetsService = {
+      getEnabledTargetByName: jest.fn().mockResolvedValue(deployTarget),
+    };
+    const prismaService = {
+      deploymentTarget: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'target-1',
+        }),
+      },
+      deploymentRun: {
+        findFirst: jest.fn().mockResolvedValue({
+          previousCommit: 'abc123',
+          status: DeploymentRunStatus.SUCCESS,
+        }),
+      },
+    };
+    const safeProcessRunner: Pick<
+      SafeProcessRunner,
+      'run' | 'resolvePathWithinDirectory'
+    > = {
+      run: jest
+        .fn<Promise<SafeProcessResult>, [string, string[], string]>()
+        .mockResolvedValueOnce({ stdout: 'def456\n', stderr: '' }),
+      resolvePathWithinDirectory: jest.fn(),
+    };
+    const healthTargetsService: Pick<
+      HealthTargetsService,
+      'getEnabledTargetByName'
+    > = {
+      getEnabledTargetByName: jest.fn(),
+    };
+    const httpHealthGateway: Pick<HttpHealthGateway, 'checkTarget'> = {
+      checkTarget: jest.fn(),
+    };
+    const service = new DeploymentService(
+      deployTargetsService as never,
+      prismaService as never,
+      safeProcessRunner,
+      healthTargetsService as unknown as HealthTargetsService,
+      httpHealthGateway,
+    );
+
+    await expect(service.getRollbackPreview('teleops-prod')).resolves.toEqual({
+      targetName: 'TeleOps Production',
+      currentCommit: 'def456',
+      rollbackCommit: 'abc123',
+      latestRunStatus: DeploymentRunStatus.SUCCESS,
+    });
+  });
+
+  it('rolls back to the previous commit and stores a rolled-back run', async () => {
+    const deployTargetsService = {
+      getEnabledTargetByName: jest.fn().mockResolvedValue(deployTarget),
+    };
+    const prismaService = {
+      deploymentTarget: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'target-1',
+        }),
+      },
+      deploymentRun: {
+        findFirst: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+          previousCommit: 'abc123',
+          status: DeploymentRunStatus.SUCCESS,
+        }),
+        create: jest.fn().mockResolvedValue({
+          id: 'run-rollback-1',
+        }),
+        update: jest.fn().mockResolvedValue(undefined),
+      },
+    };
+    const healthTargetsService: Pick<
+      HealthTargetsService,
+      'getEnabledTargetByName'
+    > = {
+      getEnabledTargetByName: jest.fn().mockResolvedValue(healthTarget),
+    };
+    const httpHealthGateway: Pick<HttpHealthGateway, 'checkTarget'> = {
+      checkTarget: jest.fn().mockResolvedValue({
+        status: HealthCheckStatus.HEALTHY,
+        responseTimeMs: 180,
+        statusCode: 200,
+        errorMessage: null,
+      }),
+    };
+    const safeProcessRunner: Pick<
+      SafeProcessRunner,
+      'run' | 'resolvePathWithinDirectory'
+    > = {
+      run: jest
+        .fn<Promise<SafeProcessResult>, [string, string[], string]>()
+        .mockResolvedValueOnce({ stdout: 'def456\n', stderr: '' })
+        .mockResolvedValueOnce({ stdout: 'fetch ok\n', stderr: '' })
+        .mockResolvedValueOnce({ stdout: 'checkout abc123 ok\n', stderr: '' })
+        .mockResolvedValueOnce({ stdout: 'compose ok\n', stderr: '' })
+        .mockResolvedValueOnce({ stdout: 'abc123\n', stderr: '' }),
+      resolvePathWithinDirectory: jest
+        .fn<string, [string, string]>()
+        .mockReturnValue('/opt/teleops/docker-compose.production.yml'),
+    };
+    const service = new DeploymentService(
+      deployTargetsService as never,
+      prismaService as never,
+      safeProcessRunner,
+      healthTargetsService as unknown as HealthTargetsService,
+      httpHealthGateway,
+    );
+
+    await expect(
+      service.rollbackDeployment('teleops-prod', 'user-1'),
+    ).resolves.toEqual({
+      targetName: 'TeleOps Production',
+      previousCommit: 'def456',
+      rolledBackToCommit: 'abc123',
+      outputSummary:
+        'fetch ok\ncheckout abc123 ok\ncompose ok\nHealth check "TeleOps HTTP" passed (HTTP 200, 180ms).',
+    });
+
+    const updateCall = prismaService.deploymentRun.update.mock.calls.at(0) as
+      | [
+          {
+            data: {
+              status: DeploymentRunStatus;
+              previousCommit: string;
+              requestedCommit: string;
+              deployedCommit: string;
+            };
+          },
+        ]
+      | undefined;
+
+    expect(updateCall?.[0].data.status).toBe(DeploymentRunStatus.ROLLED_BACK);
+    expect(updateCall?.[0].data.previousCommit).toBe('def456');
+    expect(updateCall?.[0].data.requestedCommit).toBe('abc123');
+    expect(updateCall?.[0].data.deployedCommit).toBe('abc123');
+  });
+
+  it('marks the rollback as failed when post-rollback health validation fails', async () => {
+    const deployTargetsService = {
+      getEnabledTargetByName: jest.fn().mockResolvedValue(deployTarget),
+    };
+    const prismaService = {
+      deploymentTarget: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'target-1',
+        }),
+      },
+      deploymentRun: {
+        findFirst: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+          previousCommit: 'abc123',
+          status: DeploymentRunStatus.SUCCESS,
+        }),
+        create: jest.fn().mockResolvedValue({
+          id: 'run-rollback-1',
+        }),
+        update: jest.fn().mockResolvedValue(undefined),
+      },
+    };
+    const healthTargetsService: Pick<
+      HealthTargetsService,
+      'getEnabledTargetByName'
+    > = {
+      getEnabledTargetByName: jest.fn().mockResolvedValue(healthTarget),
+    };
+    const httpHealthGateway: Pick<HttpHealthGateway, 'checkTarget'> = {
+      checkTarget: jest.fn().mockResolvedValue({
+        status: HealthCheckStatus.DOWN,
+        responseTimeMs: 95,
+        statusCode: null,
+        errorMessage: 'connect ECONNREFUSED',
+      }),
+    };
+    const safeProcessRunner: Pick<
+      SafeProcessRunner,
+      'run' | 'resolvePathWithinDirectory'
+    > = {
+      run: jest
+        .fn<Promise<SafeProcessResult>, [string, string[], string]>()
+        .mockResolvedValueOnce({ stdout: 'def456\n', stderr: '' })
+        .mockResolvedValueOnce({ stdout: 'fetch ok\n', stderr: '' })
+        .mockResolvedValueOnce({ stdout: 'checkout abc123 ok\n', stderr: '' })
+        .mockResolvedValueOnce({ stdout: 'compose ok\n', stderr: '' }),
+      resolvePathWithinDirectory: jest
+        .fn<string, [string, string]>()
+        .mockReturnValue('/opt/teleops/docker-compose.production.yml'),
+    };
+    const service = new DeploymentService(
+      deployTargetsService as never,
+      prismaService as never,
+      safeProcessRunner,
+      healthTargetsService as unknown as HealthTargetsService,
+      httpHealthGateway,
+    );
+
+    await expect(
+      service.rollbackDeployment('teleops-prod', 'user-1'),
+    ).rejects.toThrow(
+      'Health check "TeleOps HTTP" failed after deploy: connect ECONNREFUSED',
+    );
+
+    const updateCall = prismaService.deploymentRun.update.mock.calls.at(0) as
+      | [
+          {
+            data: {
+              status: DeploymentRunStatus;
+              previousCommit: string;
+              requestedCommit: string;
+            };
+          },
+        ]
+      | undefined;
+
+    expect(updateCall?.[0].data.status).toBe(
+      DeploymentRunStatus.ROLLBACK_FAILED,
+    );
+    expect(updateCall?.[0].data.previousCommit).toBe('def456');
+    expect(updateCall?.[0].data.requestedCommit).toBe('abc123');
   });
 });
