@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { configuration } from './config/configuration';
 import { validateEnvironment } from './config/env.schema';
 import { HealthModule } from './modules/health/health.module';
+import { TelegramModule } from './telegram/telegram.module';
 
 const loggerConfig: Params = {
   pinoHttp: {
@@ -43,6 +44,7 @@ const loggerConfig: Params = {
     LoggerModule.forRoot(loggerConfig),
     DatabaseModule,
     HealthModule,
+    TelegramModule,
   ],
 })
 export class AppModule {}

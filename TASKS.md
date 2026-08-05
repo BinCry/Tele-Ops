@@ -22,8 +22,8 @@ Updated: 2026-08-05
 
 ## Milestone 2 - Telegram Shell
 
-- [ ] Integrate Telegraf with long polling and callback acknowledgement.
-- [ ] Build screen rendering, navigation, and edit-or-send behavior.
+- [x] Integrate Telegraf with long polling and callback acknowledgement.
+- [x] Build screen rendering, navigation, and edit-or-send behavior.
 
 ## Milestone 3 - Auth and RBAC
 

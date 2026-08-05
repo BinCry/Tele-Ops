@@ -16,3 +16,4 @@ Updated: 2026-08-05
 2. Empty `ENCRYPTION_KEY` is temporarily allowed during Milestone 0 because no encryption-dependent feature is enabled yet; stricter enforcement will land when secure settings/backups require it.
 3. Docker, Docker Compose, Node.js, and pnpm are available in the local environment, so local verification can include build/test and later Compose validation.
 4. The initial Prisma migration is generated from schema diff because the Docker daemon is unavailable in this environment; it should be applied against a live PostgreSQL instance in a later verification pass.
+5. The Telegram shell stays owner-only for now using `TELEGRAM_OWNER_USER_ID` until the user repository and RBAC layer are implemented in the next milestone.
