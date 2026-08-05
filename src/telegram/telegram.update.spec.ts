@@ -4,6 +4,7 @@ import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-li
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
+import { DockerService } from 'src/modules/docker/docker.service';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
 import { TELEGRAM_CALLBACKS } from './callbacks/callback-data';
@@ -50,6 +51,7 @@ describe('TelegramUpdate', () => {
   let auditService: { record: jest.Mock };
   let rateLimitService: { consume: jest.Mock };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
+  let dockerService: { getOverview: jest.Mock; getRecentLogs: jest.Mock };
   let serverService: { getServerSnapshot: jest.Mock };
 
   beforeEach(() => {
@@ -65,6 +67,10 @@ describe('TelegramUpdate', () => {
     dashboardService = {
       getDashboardSnapshot: jest.fn(),
     };
+    dockerService = {
+      getOverview: jest.fn(),
+      getRecentLogs: jest.fn(),
+    };
     serverService = {
       getServerSnapshot: jest.fn(),
     };
@@ -75,6 +81,7 @@ describe('TelegramUpdate', () => {
       new RbacService(),
       rateLimitService as unknown as TelegramRateLimitService,
       dashboardService as unknown as DashboardService,
+      dockerService as unknown as DockerService,
       serverService as unknown as ServerService,
       new TelegramNavigationService(new RbacService()),
       new TelegramMenuRenderer(),

@@ -7,6 +7,7 @@ import { validateEnvironment } from './config/env.schema';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DockerModule } from './modules/docker/docker.module';
 import { HealthModule } from './modules/health/health.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { ServerModule } from './modules/server/server.module';
@@ -55,6 +56,7 @@ const loggerConfig: Params = {
     AuthModule,
     ServerModule,
     DashboardModule,
+    DockerModule,
     HealthModule,
     TelegramModule,
   ],

@@ -5,6 +5,7 @@ import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-li
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
+import { DockerService } from 'src/modules/docker/docker.service';
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
@@ -54,6 +55,7 @@ export class TelegramUpdate {
     private readonly rbacService: RbacService,
     private readonly rateLimitService: TelegramRateLimitService,
     private readonly dashboardService: DashboardService,
+    private readonly dockerService: DockerService,
     private readonly serverService: ServerService,
     private readonly navigationService: TelegramNavigationService,
     private readonly menuRenderer: TelegramMenuRenderer,
@@ -224,6 +226,87 @@ export class TelegramUpdate {
       return;
     }
 
+    if (callbackData === TELEGRAM_CALLBACKS.docker) {
+      try {
+        const overview = await this.dockerService.getOverview();
+
+        await context.answerCbQuery('Đang tải Docker...');
+        await this.auditService.record({
+          actorUserId: authorizationResult.user.id,
+          action: 'telegram.docker',
+          resourceType: 'telegram_callback',
+          resourceId: callbackData,
+          requestId: String(context.update.update_id ?? ''),
+          result: AuditResult.SUCCESS,
+        });
+        await this.menuRenderer.renderScreen(context, {
+          text: [
+            '🐳 <b>Docker</b>',
+            '',
+            overview.restricted
+              ? 'Chỉ hiển thị container nằm trong allowlist.'
+              : 'Đang hiển thị toàn bộ container hiện có.',
+            '',
+            ...(overview.containers.length > 0
+              ? overview.containers.map(
+                  (container, index) =>
+                    `${index + 1}. <b>${container.name}</b> | ${container.state} | ${container.status}`,
+                )
+              : ['Không tìm thấy container phù hợp.']),
+          ].join('\n'),
+          keyboard:
+            this.navigationService.buildFeaturePlaceholder('Docker').keyboard,
+        });
+      } catch (error) {
+        await context.answerCbQuery('Không thể kết nối Docker daemon.', {
+          show_alert: true,
+        });
+        this.logUnhandledError(error);
+      }
+      return;
+    }
+
+    if (callbackData === TELEGRAM_CALLBACKS.logs) {
+      try {
+        const logsSnapshot = await this.dockerService.getRecentLogs();
+
+        await context.answerCbQuery('Đang tải logs...');
+        await this.auditService.record({
+          actorUserId: authorizationResult.user.id,
+          action: 'telegram.logs',
+          resourceType: 'telegram_callback',
+          resourceId: callbackData,
+          requestId: String(context.update.update_id ?? ''),
+          result: AuditResult.SUCCESS,
+        });
+        await this.menuRenderer.renderScreen(context, {
+          text: logsSnapshot
+            ? [
+                '📄 <b>Logs gần nhất</b>',
+                '',
+                `Container: <b>${logsSnapshot.containerName}</b>`,
+                '',
+                '<pre>',
+                sanitizeLogs(logsSnapshot.lines.join('\n')),
+                '</pre>',
+              ].join('\n')
+            : [
+                '📄 <b>Logs gần nhất</b>',
+                '',
+                'Chưa có container phù hợp để hiển thị log.',
+              ].join('\n'),
+          keyboard:
+            this.navigationService.buildFeaturePlaceholder('Logs').keyboard,
+        });
+      } catch (error) {
+        await context.answerCbQuery('Không thể đọc logs từ Docker daemon.', {
+          show_alert: true,
+        });
+        this.logUnhandledError(error);
+      }
+      return;
+    }
+
     if (callbackData === TELEGRAM_CALLBACKS.server) {
       const serverSnapshot = await this.serverService.getServerSnapshot();
 
@@ -345,4 +428,17 @@ function formatDuration(totalSeconds: number): string {
   }
 
   return `${minutes}m`;
+}
+
+function sanitizeLogs(logs: string): string {
+  return logs.replace(/[<&>]/g, (value) => {
+    switch (value) {
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      default:
+        return '&amp;';
+    }
+  });
 }

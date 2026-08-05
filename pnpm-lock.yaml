@@ -22,6 +22,9 @@ importers:
       '@prisma/client':
         specifier: ^6.15.0
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      dockerode:
+        specifier: ^4.0.9
+        version: 4.0.12
       dotenv:
         specifier: ^17.4.1
         version: 17.4.1
@@ -65,6 +68,9 @@ importers:
       '@nestjs/testing':
         specifier: ^11.0.1
         version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28)(@nestjs/platform-express@11.1.28)
+      '@types/dockerode':
+        specifier: ^3.3.42
+        version: 3.3.47
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
@@ -462,6 +468,12 @@ packages:
       }
     engines: { node: '>=6.9.0' }
 
+  '@balena/dockerignore@1.0.2':
+    resolution:
+      {
+        integrity: sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q==,
+      }
+
   '@bcoe/v8-coverage@0.2.3':
     resolution:
       {
@@ -570,6 +582,29 @@ packages:
         integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==,
       }
     engines: { node: ^18.18.0 || ^20.9.0 || >=21.1.0 }
+
+  '@grpc/grpc-js@1.14.4':
+    resolution:
+      {
+        integrity: sha512-k9Dj3DV/itK9D06Y8f190Qgop7/Ui+D0njFV3LHMPwPT75DpXLQohE9Wmz0QElrJnzsjB7KPWiKJbOl7IPDArQ==,
+      }
+    engines: { node: '>=12.10.0' }
+
+  '@grpc/proto-loader@0.7.15':
+    resolution:
+      {
+        integrity: sha512-tMXdRCfYVixjuFK+Hk0Q1s38gV9zDiDJfWL3h1rv4Qc39oILCu1TRTDt7+fGUI8K4G1Fj125Hx/ru3azECWTyQ==,
+      }
+    engines: { node: '>=6' }
+    hasBin: true
+
+  '@grpc/proto-loader@0.8.1':
+    resolution:
+      {
+        integrity: sha512-wtF6h+DY6M3YaDBPAmvuuA6jV8Sif9MjtOI5euKFWRgCDl5PeDpPsHR9u2l6St5ceY8AZgoNDww5+HvEsXFsGg==,
+      }
+    engines: { node: '>=6' }
+    hasBin: true
 
   '@humanfs/core@0.19.2':
     resolution:
@@ -1000,6 +1035,12 @@ packages:
         integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==,
       }
 
+  '@js-sdsl/ordered-map@4.4.2':
+    resolution:
+      {
+        integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==,
+      }
+
   '@lukeed/csprng@1.1.0':
     resolution:
       {
@@ -1200,6 +1241,60 @@ packages:
         integrity: sha512-xFj1VcJ1N3MKooOQAGO0W5tsd0W2QzIvW7DD7c/8H14Zmp4jseeWAITm+w2LLoLrlhoHdPPh0NMZ8mfL6puoHA==,
       }
 
+  '@protobufjs/aspromise@1.1.2':
+    resolution:
+      {
+        integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==,
+      }
+
+  '@protobufjs/base64@1.1.2':
+    resolution:
+      {
+        integrity: sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg==,
+      }
+
+  '@protobufjs/codegen@2.0.5':
+    resolution:
+      {
+        integrity: sha512-zgXFLzW3Ap33e6d0Wlj4MGIm6Ce8O89n/apUaGNB/jx+hw+ruWEp7EwGUshdLKVRCxZW12fp9r40E1mQrf/34g==,
+      }
+
+  '@protobufjs/eventemitter@1.1.1':
+    resolution:
+      {
+        integrity: sha512-vW1GmwMZNnL+gMRaovlh9yZX74kc+TTU3FObkkurpMaRtBfLP3ldjS9KQWlwZgraRE0+dheEEoAxdzcJQ8eXZg==,
+      }
+
+  '@protobufjs/fetch@1.1.1':
+    resolution:
+      {
+        integrity: sha512-GpptLrs57adMSuHi3VNj0mAF8dwh36LMaYF6XyJ6JMWlVsc+t42tm1HSEDmOs3A8fC9yyeisgLhsTVQokOZ0zw==,
+      }
+
+  '@protobufjs/float@1.0.2':
+    resolution:
+      {
+        integrity: sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ==,
+      }
+
+  '@protobufjs/path@1.1.2':
+    resolution:
+      {
+        integrity: sha512-6JOcJ5Tm08dOHAbdR3GrvP+yUUfkjG5ePsHYczMFLq3ZmMkAD98cDgcT2iA1lJ9NVwFd4tH/iSSoe44YWkltEA==,
+      }
+
+  '@protobufjs/pool@1.1.0':
+    resolution:
+      {
+        integrity: sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw==,
+      }
+
+  '@protobufjs/utf8@1.1.2':
+    resolution:
+      {
+        integrity: sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug==,
+      }
+
   '@sinclair/typebox@0.34.52':
     resolution:
       {
@@ -1315,6 +1410,18 @@ packages:
         integrity: sha512-he+DHOWReW0nghN24E1WUqM0efK4kI9oTqDm6XmK8ZPe2djZ90BSNdGnIyCLzCPw7/pogPlGbzI2wHGGmi4O/Q==,
       }
 
+  '@types/docker-modem@3.0.6':
+    resolution:
+      {
+        integrity: sha512-yKpAGEuKRSS8wwx0joknWxsmLha78wNMe9R2S3UNsVOkZded8UqOrV8KoeDXoXsjndxwyF3eIhyClGbO1SEhEg==,
+      }
+
+  '@types/dockerode@3.3.47':
+    resolution:
+      {
+        integrity: sha512-ShM1mz7rCjdssXt7Xz0u1/R2BJC7piWa3SJpUBiVjCf2A3XNn4cP6pUVaD8bLanpPVVn4IKzJuw3dOvkJ8IbYw==,
+      }
+
   '@types/eslint-scope@3.7.7':
     resolution:
       {
@@ -1387,6 +1494,12 @@ packages:
         integrity: sha512-ymXWVrDiCxTBE3+RIrrP533E70eA+9qu7zdWoHuOmGujkYtzf4HQF96b8nwHLqhuf4ykX61IGRIB38CC6/sImQ==,
       }
 
+  '@types/node@18.19.130':
+    resolution:
+      {
+        integrity: sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg==,
+      }
+
   '@types/node@24.13.3':
     resolution:
       {
@@ -1415,6 +1528,12 @@ packages:
     resolution:
       {
         integrity: sha512-8mam4H1NHLtu7nmtalF7eyBH14QyOASmcxHhSfEoRyr0nP/YdoesEtU+uSRvMe96TW/HPTtkoKqQLl53N7UXMQ==,
+      }
+
+  '@types/ssh2@1.15.5':
+    resolution:
+      {
+        integrity: sha512-N1ASjp/nXH3ovBHddRJpli4ozpk6UdDYIX4RJWFa9L1YKnzdhTlVmiGHm4DZnj/jLbqZpes4aeR30EFGQtvhQQ==,
       }
 
   '@types/stack-utils@2.0.3':
@@ -2031,6 +2150,12 @@ packages:
         integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==,
       }
 
+  asn1@0.2.6:
+    resolution:
+      {
+        integrity: sha512-ix/FxPn0MDjeyJ7i/yoHGFt/EX6LyNbxSEhPPXODPL+KB0VPk86UYfL0lMdy+KCnv+fmvIzySwaK5COwqVbWTQ==,
+      }
+
   asynckit@0.4.0:
     resolution:
       {
@@ -2110,6 +2235,12 @@ packages:
       }
     engines: { node: '>=6.0.0' }
     hasBin: true
+
+  bcrypt-pbkdf@1.0.2:
+    resolution:
+      {
+        integrity: sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w==,
+      }
 
   bl@4.1.0:
     resolution:
@@ -2193,6 +2324,13 @@ packages:
       {
         integrity: sha512-EHcyIPBQ4BSGlvjB16k5KgAJ27CIsHY/2JBmCRReo48y9rQ3MaUzWX3KVlBa4U7MyX02HdVj0K7C3WaB3ju7FQ==,
       }
+
+  buildcheck@0.0.7:
+    resolution:
+      {
+        integrity: sha512-lHblz4ahamxpTmnsk+MNTRWsjYKv965MwOrSJyeD588rR3Jcu7swE+0wN5F+PbL5cjgu/9ObkhfzEPuofEMwLA==,
+      }
+    engines: { node: '>=10.0.0' }
 
   busboy@1.6.0:
     resolution:
@@ -2286,6 +2424,12 @@ packages:
         integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==,
       }
     engines: { node: '>= 14.16.0' }
+
+  chownr@1.1.4:
+    resolution:
+      {
+        integrity: sha512-jJ0bqzaylmJtVnNgzTeSOs8DPavpbYgEr/b0YL8/2GO3xJEhInFmhKMUnEJQjZumK7KXGFhUy89PrsJWlakBVg==,
+      }
 
   chrome-trace-event@1.0.4:
     resolution:
@@ -2518,6 +2662,13 @@ packages:
       typescript:
         optional: true
 
+  cpu-features@0.0.10:
+    resolution:
+      {
+        integrity: sha512-9IkYqtX3YHPCzoVg1Py+o9057a3i0fp7S530UWokCSaFVTc7CwXPRiOjRjBQQ18ZCNafx78YfnG+HALxtVmOGA==,
+      }
+    engines: { node: '>=10.0.0' }
+
   create-require@1.1.1:
     resolution:
       {
@@ -2631,6 +2782,20 @@ packages:
         integrity: sha512-X07nttJQkwkfKfvTPG/KSnE2OMdcUCao6+eXF3wmnIQRn2aPAHH3VxDbDOdegkd6JbPsXqShpvEOHfAT+nCNwQ==,
       }
     engines: { node: '>=0.3.1' }
+
+  docker-modem@5.0.7:
+    resolution:
+      {
+        integrity: sha512-XJgGhoR/CLpqshm4d3L7rzH6t8NgDFUIIpztYlLHIApeJjMZKYJMz2zxPsYxnejq5h3ELYSw/RBsi3t5h7gNTA==,
+      }
+    engines: { node: '>= 8.0' }
+
+  dockerode@4.0.12:
+    resolution:
+      {
+        integrity: sha512-/bCZd6KlGcjZO8Buqmi/vXuqEGVEZ0PNjx/biBNqJD3MhK9DmdiAuKxqfNhflgDESDIiBz3qF+0e55+CpnrUcw==,
+      }
+    engines: { node: '>= 8.0' }
 
   dotenv-expand@12.0.3:
     resolution:
@@ -3135,6 +3300,12 @@ packages:
         integrity: sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A==,
       }
     engines: { node: '>= 0.8' }
+
+  fs-constants@1.0.0:
+    resolution:
+      {
+        integrity: sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow==,
+      }
 
   fs-extra@10.1.0:
     resolution:
@@ -3882,6 +4053,12 @@ packages:
       }
     engines: { node: '>=10' }
 
+  lodash.camelcase@4.3.0:
+    resolution:
+      {
+        integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==,
+      }
+
   lodash.memoize@4.1.2:
     resolution:
       {
@@ -3906,6 +4083,12 @@ packages:
         integrity: sha512-8XPvpAA8uyhfteu8pIvQxpJZ7SYYdpUivZpGy6sFsBuKRY/7rQGavedeB8aK+Zkyq6upMFVL/9AW6vOYzfRyLg==,
       }
     engines: { node: '>=10' }
+
+  long@5.3.2:
+    resolution:
+      {
+        integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==,
+      }
 
   lru-cache@10.4.3:
     resolution:
@@ -4075,6 +4258,12 @@ packages:
       }
     engines: { node: '>=16 || 14 >=14.17' }
 
+  mkdirp-classic@0.5.3:
+    resolution:
+      {
+        integrity: sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==,
+      }
+
   mri@1.2.0:
     resolution:
       {
@@ -4101,6 +4290,12 @@ packages:
         integrity: sha512-WWdIxpyjEn+FhQJQQv9aQAYlHoNVdzIzUySNV1gHUPDSdZJ3yZn7pAAbQcV7B56Mvu881q9FZV+0Vx2xC44VWA==,
       }
     engines: { node: ^18.17.0 || >=20.5.0 }
+
+  nan@2.28.0:
+    resolution:
+      {
+        integrity: sha512-fTsDz99OTq2sVePhGdp4qQhggZFtKr64ZNVyVajRKtMOkJxYekplBh577PiJB12v/D3s2E5cGtOI45LWp6rnLQ==,
+      }
 
   napi-postinstall@0.3.4:
     resolution:
@@ -4536,6 +4731,13 @@ packages:
         integrity: sha512-jQSaVHsPgtyw60e1rQ/A+/ArPEj/S8pS/vFnyGa/gYFXrKk/6RuDkoqVDQ5NI5MmS01698ltlAk0NoDBNLujRw==,
       }
 
+  protobufjs@7.6.5:
+    resolution:
+      {
+        integrity: sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==,
+      }
+    engines: { node: '>=12.0.0' }
+
   proxy-addr@2.0.7:
     resolution:
       {
@@ -4889,6 +5091,12 @@ packages:
       }
     engines: { node: '>= 12' }
 
+  split-ca@1.0.1:
+    resolution:
+      {
+        integrity: sha512-Q5thBSxp5t8WPTTJQS59LrGqOZqOsrhDGDVm8azCqIBjSBd7nd9o2PM+mDulQQkh8h//4U6hFZnc/mul8t5pWQ==,
+      }
+
   split2@4.2.0:
     resolution:
       {
@@ -4901,6 +5109,13 @@ packages:
       {
         integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==,
       }
+
+  ssh2@1.17.0:
+    resolution:
+      {
+        integrity: sha512-wPldCk3asibAjQ/kziWQQt1Wh3PgDFpC0XpwclzKcdT1vql6KeYxf5LIt4nlFkUeR8WuphYMKqUA56X4rjbfgQ==,
+      }
+    engines: { node: '>=10.16.0' }
 
   stack-utils@2.0.6:
     resolution:
@@ -5061,6 +5276,19 @@ packages:
     resolution:
       {
         integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==,
+      }
+    engines: { node: '>=6' }
+
+  tar-fs@2.1.5:
+    resolution:
+      {
+        integrity: sha512-OboTd8mmMhZDNPV+UjQcK9yKAatXu2aJ+r1w4im1Otd4M4fl2hwvdoXUxIYHFTHWK/3y3FarBP70v3vwmGlOxw==,
+      }
+
+  tar-stream@2.2.0:
+    resolution:
+      {
+        integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==,
       }
     engines: { node: '>=6' }
 
@@ -5269,6 +5497,12 @@ packages:
         integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==,
       }
 
+  tweetnacl@0.14.5:
+    resolution:
+      {
+        integrity: sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA==,
+      }
+
   type-check@0.4.0:
     resolution:
       {
@@ -5357,6 +5591,12 @@ packages:
       }
     engines: { node: '>=18' }
 
+  undici-types@5.26.5:
+    resolution:
+      {
+        integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==,
+      }
+
   undici-types@7.18.2:
     resolution:
       {
@@ -5403,6 +5643,14 @@ packages:
       {
         integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==,
       }
+
+  uuid@10.0.0:
+    resolution:
+      {
+        integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==,
+      }
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    hasBin: true
 
   v8-compile-cache-lib@3.0.1:
     resolution:
@@ -5833,6 +6081,8 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
+  '@balena/dockerignore@1.0.2': {}
+
   '@bcoe/v8-coverage@0.2.3': {}
 
   '@borewit/text-codec@0.2.2': {}
@@ -5905,6 +6155,25 @@ snapshots:
     dependencies:
       '@eslint/core': 0.17.0
       levn: 0.4.1
+
+  '@grpc/grpc-js@1.14.4':
+    dependencies:
+      '@grpc/proto-loader': 0.8.1
+      '@js-sdsl/ordered-map': 4.4.2
+
+  '@grpc/proto-loader@0.7.15':
+    dependencies:
+      lodash.camelcase: 4.3.0
+      long: 5.3.2
+      protobufjs: 7.6.5
+      yargs: 17.7.3
+
+  '@grpc/proto-loader@0.8.1':
+    dependencies:
+      lodash.camelcase: 4.3.0
+      long: 5.3.2
+      protobufjs: 7.6.5
+      yargs: 17.7.3
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -6288,6 +6557,8 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@js-sdsl/ordered-map@4.4.2': {}
+
   '@lukeed/csprng@1.1.0': {}
 
   '@napi-rs/wasm-runtime@1.2.2(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
@@ -6447,6 +6718,26 @@ snapshots:
     dependencies:
       '@prisma/debug': 6.19.3
 
+  '@protobufjs/aspromise@1.1.2': {}
+
+  '@protobufjs/base64@1.1.2': {}
+
+  '@protobufjs/codegen@2.0.5': {}
+
+  '@protobufjs/eventemitter@1.1.1': {}
+
+  '@protobufjs/fetch@1.1.1':
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+
+  '@protobufjs/float@1.0.2': {}
+
+  '@protobufjs/path@1.1.2': {}
+
+  '@protobufjs/pool@1.1.0': {}
+
+  '@protobufjs/utf8@1.1.2': {}
+
   '@sinclair/typebox@0.34.52': {}
 
   '@sinonjs/commons@3.0.1':
@@ -6515,6 +6806,17 @@ snapshots:
 
   '@types/cookiejar@2.1.5': {}
 
+  '@types/docker-modem@3.0.6':
+    dependencies:
+      '@types/node': 24.13.3
+      '@types/ssh2': 1.15.5
+
+  '@types/dockerode@3.3.47':
+    dependencies:
+      '@types/docker-modem': 3.0.6
+      '@types/node': 24.13.3
+      '@types/ssh2': 1.15.5
+
   '@types/eslint-scope@3.7.7':
     dependencies:
       '@types/eslint': 9.6.1
@@ -6561,6 +6863,10 @@ snapshots:
 
   '@types/methods@1.1.4': {}
 
+  '@types/node@18.19.130':
+    dependencies:
+      undici-types: 5.26.5
+
   '@types/node@24.13.3':
     dependencies:
       undici-types: 7.18.2
@@ -6577,6 +6883,10 @@ snapshots:
     dependencies:
       '@types/http-errors': 2.0.5
       '@types/node': 24.13.3
+
+  '@types/ssh2@1.15.5':
+    dependencies:
+      '@types/node': 18.19.130
 
   '@types/stack-utils@2.0.3': {}
 
@@ -6941,6 +7251,10 @@ snapshots:
 
   asap@2.0.6: {}
 
+  asn1@0.2.6:
+    dependencies:
+      safer-buffer: 2.1.2
+
   asynckit@0.4.0: {}
 
   atomic-sleep@1.0.0: {}
@@ -7004,6 +7318,10 @@ snapshots:
   base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.11.12: {}
+
+  bcrypt-pbkdf@1.0.2:
+    dependencies:
+      tweetnacl: 0.14.5
 
   bl@4.1.0:
     dependencies:
@@ -7070,6 +7388,9 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
+  buildcheck@0.0.7:
+    optional: true
+
   busboy@1.6.0:
     dependencies:
       streamsearch: 1.1.0
@@ -7121,6 +7442,8 @@ snapshots:
   chokidar@4.0.3:
     dependencies:
       readdirp: 4.1.2
+
+  chownr@1.1.4: {}
 
   chrome-trace-event@1.0.4: {}
 
@@ -7224,6 +7547,12 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
+  cpu-features@0.0.10:
+    dependencies:
+      buildcheck: 0.0.7
+      nan: 2.28.0
+    optional: true
+
   create-require@1.1.1: {}
 
   cross-spawn@7.0.6:
@@ -7266,6 +7595,27 @@ snapshots:
       wrappy: 1.0.2
 
   diff@4.0.4: {}
+
+  docker-modem@5.0.7:
+    dependencies:
+      debug: 4.4.3
+      readable-stream: 3.6.2
+      split-ca: 1.0.1
+      ssh2: 1.17.0
+    transitivePeerDependencies:
+      - supports-color
+
+  dockerode@4.0.12:
+    dependencies:
+      '@balena/dockerignore': 1.0.2
+      '@grpc/grpc-js': 1.14.4
+      '@grpc/proto-loader': 0.7.15
+      docker-modem: 5.0.7
+      protobufjs: 7.6.5
+      tar-fs: 2.1.5
+      uuid: 10.0.0
+    transitivePeerDependencies:
+      - supports-color
 
   dotenv-expand@12.0.3:
     dependencies:
@@ -7603,6 +7953,8 @@ snapshots:
   forwarded@0.2.0: {}
 
   fresh@2.0.0: {}
+
+  fs-constants@1.0.0: {}
 
   fs-extra@10.1.0:
     dependencies:
@@ -8199,6 +8551,8 @@ snapshots:
     dependencies:
       p-locate: 5.0.0
 
+  lodash.camelcase@4.3.0: {}
+
   lodash.memoize@4.1.2: {}
 
   lodash.merge@4.6.2: {}
@@ -8209,6 +8563,8 @@ snapshots:
     dependencies:
       chalk: 4.1.2
       is-unicode-supported: 0.1.0
+
+  long@5.3.2: {}
 
   lru-cache@10.4.3: {}
 
@@ -8280,6 +8636,8 @@ snapshots:
 
   minipass@7.1.3: {}
 
+  mkdirp-classic@0.5.3: {}
+
   mri@1.2.0: {}
 
   ms@2.1.3: {}
@@ -8292,6 +8650,9 @@ snapshots:
       type-is: 1.6.18
 
   mute-stream@2.0.0: {}
+
+  nan@2.28.0:
+    optional: true
 
   napi-postinstall@0.3.4: {}
 
@@ -8531,6 +8892,20 @@ snapshots:
 
   process-warning@5.1.0: {}
 
+  protobufjs@7.6.5:
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/base64': 1.1.2
+      '@protobufjs/codegen': 2.0.5
+      '@protobufjs/eventemitter': 1.1.1
+      '@protobufjs/fetch': 1.1.1
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/path': 1.1.2
+      '@protobufjs/pool': 1.1.0
+      '@protobufjs/utf8': 1.1.2
+      '@types/node': 24.13.3
+      long: 5.3.2
+
   proxy-addr@2.0.7:
     dependencies:
       forwarded: 0.2.0
@@ -8737,9 +9112,19 @@ snapshots:
 
   source-map@0.7.6: {}
 
+  split-ca@1.0.1: {}
+
   split2@4.2.0: {}
 
   sprintf-js@1.0.3: {}
+
+  ssh2@1.17.0:
+    dependencies:
+      asn1: 0.2.6
+      bcrypt-pbkdf: 1.0.2
+    optionalDependencies:
+      cpu-features: 0.0.10
+      nan: 2.28.0
 
   stack-utils@2.0.6:
     dependencies:
@@ -8831,6 +9216,21 @@ snapshots:
   systeminformation@5.33.1: {}
 
   tapable@2.3.3: {}
+
+  tar-fs@2.1.5:
+    dependencies:
+      chownr: 1.1.4
+      mkdirp-classic: 0.5.3
+      pump: 3.0.4
+      tar-stream: 2.2.0
+
+  tar-stream@2.2.0:
+    dependencies:
+      bl: 4.1.0
+      end-of-stream: 1.4.5
+      fs-constants: 1.0.0
+      inherits: 2.0.4
+      readable-stream: 3.6.2
 
   telegraf@4.16.3:
     dependencies:
@@ -8955,6 +9355,8 @@ snapshots:
 
   tslib@2.8.1: {}
 
+  tweetnacl@0.14.5: {}
+
   type-check@0.4.0:
     dependencies:
       prelude-ls: 1.2.1
@@ -9000,6 +9402,8 @@ snapshots:
 
   uint8array-extras@1.5.0: {}
 
+  undici-types@5.26.5: {}
+
   undici-types@7.18.2: {}
 
   universalify@2.0.1: {}
@@ -9044,6 +9448,8 @@ snapshots:
       punycode: 2.3.1
 
   util-deprecate@1.0.2: {}
+
+  uuid@10.0.0: {}
 
   v8-compile-cache-lib@3.0.1: {}
 

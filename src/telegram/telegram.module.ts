@@ -3,6 +3,7 @@ import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-li
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { AuditModule } from 'src/modules/audit/audit.module';
 import { DashboardModule } from 'src/modules/dashboard/dashboard.module';
+import { DockerModule } from 'src/modules/docker/docker.module';
 import { RbacModule } from 'src/modules/rbac/rbac.module';
 import { ServerModule } from 'src/modules/server/server.module';
 import { TelegramNavigationService } from './navigation/navigation.service';
@@ -11,7 +12,14 @@ import { TelegramService } from './telegram.service';
 import { TelegramUpdate } from './telegram.update';
 
 @Module({
-  imports: [AuthModule, AuditModule, RbacModule, ServerModule, DashboardModule],
+  imports: [
+    AuthModule,
+    AuditModule,
+    RbacModule,
+    ServerModule,
+    DashboardModule,
+    DockerModule,
+  ],
   providers: [
     TelegramRateLimitService,
     TelegramMenuRenderer,

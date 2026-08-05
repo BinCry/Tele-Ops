@@ -10,6 +10,7 @@ Updated: 2026-08-05
 4. Use `nestjs-pino` for structured logging so later Telegram, HTTP, and job flows share the same logging pipeline.
 5. Keep Telegram UI copy in Vietnamese while source code identifiers remain English, matching the product prompt.
 6. System metrics are gathered through `systeminformation` inside a narrow gateway adapter so Telegram and dashboard flows can stay testable with mocks.
+7. Docker integration starts with read-only visibility and graceful error handling first; mutation flows will layer on top of the same gateway once confirmation tokens and job execution are wired in.
 
 ## Assumptions
 

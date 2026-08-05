@@ -16,3 +16,5 @@
 - Added role-aware home menu rendering so viewers/operators/admins see only the controls they are allowed to access.
 - Added server metrics gateway and dashboard aggregation service backed by `systeminformation`.
 - Added live Telegram screens for `Dashboard` and `Server` with CPU, RAM, disk, hostname, and uptime data.
+- Added Docker gateway/service groundwork with allowlist-aware container listing and recent log retrieval.
+- Added Telegram Docker and Logs screens with graceful fallback when the Docker daemon is unavailable.
