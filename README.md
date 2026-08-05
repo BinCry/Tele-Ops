@@ -12,7 +12,6 @@ TeleOps is a Telegram-based operations bot for managing services running on a VP
   <img src="https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/Redis-8-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis" />
   <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker" />
-  <img src="https://img.shields.io/badge/Telegraf-Telegram-26A5E4?style=flat-square&logo=telegram&logoColor=white" alt="Telegraf" />
   <img src="https://img.shields.io/badge/Jest-Test-C21325?style=flat-square&logo=jest&logoColor=white" alt="Jest" />
 </p>
 
