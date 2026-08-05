@@ -13,6 +13,7 @@ Updated: 2026-08-05
 - Database and backup visibility groundwork is implemented locally and verified.
 - Users, settings, and audit read-only Telegram screens are implemented locally and verified.
 - Docker start/stop/restart confirmation groundwork with persisted action tokens is implemented locally and verified.
+- Backup execution foundation with persistent records, checksuming, and retention cleanup is implemented locally and verified.
 - Prisma schema, seed flow, migration SQL, Compose files, Dockerfile, CI workflow, Telegram shell, access control, server visibility, and Docker read-only visibility are present.
 
 ## Next Checkpoint
@@ -20,4 +21,5 @@ Updated: 2026-08-05
 - Commit and push the database/backup visibility slice.
 - Commit and push the users/settings/audit + permission-hardening slice.
 - Commit and push the Docker confirmation slice.
-- Continue with deployment workflows, queued execution, and backup job automation.
+- Commit and push the backup execution foundation slice.
+- Continue with Telegram-triggered backup execution and deployment workflows.

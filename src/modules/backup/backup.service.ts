@@ -1,13 +1,12 @@
-import { execFile } from 'node:child_process';
-import { constants } from 'node:fs';
-import { access } from 'node:fs/promises';
-import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
+import { constants, createReadStream } from 'node:fs';
+import { access, mkdir, stat, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BackupStatus } from '@prisma/client';
 import { PrismaService } from 'src/database/prisma.service';
-
-const execFileAsync = promisify(execFile);
+import { PostgresBackupGateway } from './postgres-backup.gateway';
 
 export type DatabaseStatusSnapshot = {
   host: string;
@@ -34,11 +33,19 @@ export type BackupOverviewSnapshot = {
   latestBackup: BackupRecordSummary | null;
 };
 
+export type BackupExecutionResult = {
+  filename: string;
+  storagePath: string;
+  checksumSha256: string;
+  sizeBytes: bigint;
+};
+
 @Injectable()
 export class BackupService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
+    private readonly postgresBackupGateway: PostgresBackupGateway,
   ) {}
 
   async getDatabaseStatus(): Promise<DatabaseStatusSnapshot> {
@@ -74,9 +81,9 @@ export class BackupService {
         createdAt: 'desc',
       },
     });
-    const [directoryAccessible, pgDumpProbe] = await Promise.all([
+    const [directoryAccessible, pgDumpVersion] = await Promise.all([
       this.isDirectoryAccessible(backupDirectory),
-      this.getPgDumpProbe(),
+      this.postgresBackupGateway.getPgDumpVersion(),
     ]);
 
     const overview: BackupOverviewSnapshot = {
@@ -87,7 +94,7 @@ export class BackupService {
         'BACKUP_MAX_TELEGRAM_SIZE_MB',
         20,
       ),
-      pgDumpAvailable: pgDumpProbe.available,
+      pgDumpAvailable: pgDumpVersion !== null,
       latestBackup: latestBackup
         ? {
             filename: latestBackup.filename,
@@ -99,11 +106,115 @@ export class BackupService {
         : null,
     };
 
-    if (pgDumpProbe.version) {
-      overview.pgDumpVersion = pgDumpProbe.version;
+    if (pgDumpVersion) {
+      overview.pgDumpVersion = pgDumpVersion;
     }
 
     return overview;
+  }
+
+  async createBackup(triggeredById?: string): Promise<BackupExecutionResult> {
+    if (!this.configService.get<boolean>('DATABASE_BACKUP_ENABLED', true)) {
+      throw new Error('Database backup is disabled.');
+    }
+
+    const databaseUrl = this.configService.getOrThrow<string>('DATABASE_URL');
+    const backupDirectory = this.configService.get<string>(
+      'paths.backupDirectory',
+      '/data/backups',
+    );
+    const filename = buildBackupFilename();
+    const storagePath = join(backupDirectory, filename);
+
+    await mkdir(backupDirectory, { recursive: true });
+
+    const record = await this.prismaService.backupRecord.create({
+      data: {
+        triggeredById: triggeredById ?? null,
+        filename,
+        storagePath,
+        status: BackupStatus.RUNNING,
+        startedAt: new Date(),
+      },
+    });
+
+    try {
+      await this.postgresBackupGateway.createBackup(databaseUrl, storagePath);
+
+      const fileStat = await stat(storagePath);
+      const checksumSha256 = await computeSha256(storagePath);
+      const sizeBytes = BigInt(fileStat.size);
+
+      await this.prismaService.backupRecord.update({
+        where: {
+          id: record.id,
+        },
+        data: {
+          status: BackupStatus.SUCCESS,
+          checksumSha256,
+          sizeBytes,
+          finishedAt: new Date(),
+        },
+      });
+      await this.pruneExpiredBackups();
+
+      return {
+        filename,
+        storagePath,
+        checksumSha256,
+        sizeBytes,
+      };
+    } catch (error) {
+      await unlink(storagePath).catch(() => undefined);
+      await this.prismaService.backupRecord.update({
+        where: {
+          id: record.id,
+        },
+        data: {
+          status: BackupStatus.FAILED,
+          errorMessage:
+            error instanceof Error ? error.message : 'Unknown backup error',
+          finishedAt: new Date(),
+        },
+      });
+      throw error;
+    }
+  }
+
+  private async pruneExpiredBackups(): Promise<void> {
+    const retentionDays = this.configService.get<number>(
+      'BACKUP_RETENTION_DAYS',
+      7,
+    );
+    const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+    const expiredRecords = await this.prismaService.backupRecord.findMany({
+      where: {
+        createdAt: {
+          lt: cutoff,
+        },
+      },
+      select: {
+        id: true,
+        storagePath: true,
+      },
+    });
+
+    if (expiredRecords.length === 0) {
+      return;
+    }
+
+    await Promise.all(
+      expiredRecords.map((record) =>
+        unlink(record.storagePath).catch(() => undefined),
+      ),
+    );
+    await this.prismaService.backupRecord.deleteMany({
+      where: {
+        id: {
+          in: expiredRecords.map((record) => record.id),
+        },
+      },
+    });
   }
 
   private async isDirectoryAccessible(path: string): Promise<boolean> {
@@ -114,37 +225,40 @@ export class BackupService {
       return false;
     }
   }
-
-  private async getPgDumpProbe(): Promise<{
-    available: boolean;
-    version?: string;
-  }> {
-    try {
-      const { stdout, stderr } = await execFileAsync('pg_dump', ['--version']);
-      const version = [stdout, stderr]
-        .map((value) => value.trim())
-        .find((value) => value.length > 0);
-
-      if (version) {
-        return {
-          available: true,
-          version,
-        };
-      }
-
-      return {
-        available: true,
-      };
-    } catch {
-      return {
-        available: false,
-      };
-    }
-  }
 }
 
 function formatHost(databaseUrl: URL): string {
   return databaseUrl.port.length > 0
     ? `${databaseUrl.hostname}:${databaseUrl.port}`
     : databaseUrl.hostname;
+}
+
+function buildBackupFilename(): string {
+  const now = new Date();
+  const parts = [
+    now.getUTCFullYear(),
+    String(now.getUTCMonth() + 1).padStart(2, '0'),
+    String(now.getUTCDate()).padStart(2, '0'),
+    '-',
+    String(now.getUTCHours()).padStart(2, '0'),
+    String(now.getUTCMinutes()).padStart(2, '0'),
+    String(now.getUTCSeconds()).padStart(2, '0'),
+  ];
+
+  return `teleops-${parts.join('')}.sql`;
+}
+
+async function computeSha256(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256');
+    const stream = createReadStream(filePath);
+
+    stream.on('data', (chunk) => {
+      hash.update(chunk as Buffer);
+    });
+    stream.on('end', () => {
+      resolve(hash.digest('hex'));
+    });
+    stream.on('error', reject);
+  });
 }
