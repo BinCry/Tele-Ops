@@ -19,10 +19,12 @@ Updated: 2026-08-05
 - Backend deployment execution foundation with persisted run records and safe path validation is implemented locally and verified.
 - Telegram-triggered deployment confirmation and execution are implemented locally and verified.
 - Monitoring target config loading, live HTTP probes, persisted samples, and a Telegram monitoring screen are implemented locally and verified.
+- Deployment execution now blocks overlapping `RUNNING` targets and validates optional post-deploy health checks before success is recorded.
 - Prisma schema, seed flow, migration SQL, Compose files, Dockerfile, CI workflow, Telegram shell, access control, server visibility, and Docker read-only visibility are present.
 
 ## Next Checkpoint
 
 - Commit and push the Telegram deploy execution slice.
 - Commit and push the monitoring overview slice.
-- Continue with alert rules, deployment locking/health validation, backup artifact delivery, and remaining production-readiness gaps.
+- Commit and push the deploy hardening slice.
+- Continue with alert rules, deployment rollback, backup artifact delivery, and remaining production-readiness gaps.

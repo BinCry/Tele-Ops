@@ -5,6 +5,6 @@ import { MonitoringService } from './monitoring.service';
 
 @Module({
   providers: [HttpHealthGateway, HealthTargetsService, MonitoringService],
-  exports: [MonitoringService],
+  exports: [HttpHealthGateway, HealthTargetsService, MonitoringService],
 })
 export class MonitoringModule {}

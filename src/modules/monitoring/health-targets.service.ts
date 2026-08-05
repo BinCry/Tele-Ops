@@ -49,6 +49,21 @@ export class HealthTargetsService {
     };
   }
 
+  async getEnabledTargetByName(name: string): Promise<HealthTargetSummary> {
+    const config = await this.loadConfig();
+    const target = config.targets.find((item) => item.name === name);
+
+    if (!target) {
+      throw new Error(`Health target "${name}" is not configured.`);
+    }
+
+    if (!target.enabled) {
+      throw new Error(`Health target "${name}" is disabled.`);
+    }
+
+    return target;
+  }
+
   private async loadConfig(): Promise<{
     configPath: string;
     fileExists: boolean;

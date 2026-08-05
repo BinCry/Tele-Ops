@@ -15,8 +15,8 @@ TeleOps is a Telegram-based operations bot for managing services running on a VP
 ## Current Status
 
 - Milestones 0 through 4 are complete and pushed.
-- Current capabilities: Telegram auth/RBAC, audit trail, rate limiting, dashboard/server visibility, Docker visibility plus confirmed mutations, PostgreSQL status/backup execution, deploy target execution, and live monitoring overview from health targets.
-- Current gaps before deploy-ready: alerting workflows, deployment locking/rollback, richer user/settings management, backup artifact delivery, and full operations documentation.
+- Current capabilities: Telegram auth/RBAC, audit trail, rate limiting, dashboard/server visibility, Docker visibility plus confirmed mutations, PostgreSQL status/backup execution, deploy target execution with active-run guard and post-deploy health validation, and live monitoring overview from health targets.
+- Current gaps before deploy-ready: alerting workflows, deployment rollback, richer user/settings management, backup artifact delivery, and full operations documentation.
 
 ## Tech Stack
 

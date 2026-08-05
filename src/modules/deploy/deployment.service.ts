@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { DeploymentRunStatus } from '@prisma/client';
+import { DeploymentRunStatus, HealthCheckStatus } from '@prisma/client';
 import { PrismaService } from 'src/database/prisma.service';
+import { HealthTargetsService } from 'src/modules/monitoring/health-targets.service';
+import { HttpHealthGateway } from 'src/modules/monitoring/http-health.gateway';
 import {
   DeployTargetSummary,
   DeployTargetsService,
@@ -20,6 +22,8 @@ export class DeploymentService {
     private readonly deployTargetsService: DeployTargetsService,
     private readonly prismaService: PrismaService,
     private readonly safeProcessRunner: SafeProcessRunner,
+    private readonly healthTargetsService: HealthTargetsService,
+    private readonly httpHealthGateway: HttpHealthGateway,
   ) {}
 
   async runDeployment(
@@ -54,6 +58,22 @@ export class DeploymentService {
         enabled: target.enabled,
       },
     });
+    const activeRun = await this.prismaService.deploymentRun.findFirst({
+      where: {
+        targetId: persistedTarget.id,
+        status: DeploymentRunStatus.RUNNING,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (activeRun) {
+      throw new Error(
+        `Deployment target "${target.displayName}" already has a running deployment.`,
+      );
+    }
+
     const deploymentRun = await this.prismaService.deploymentRun.create({
       data: {
         targetId: persistedTarget.id,
@@ -105,6 +125,7 @@ export class DeploymentService {
           target,
         ),
       );
+      commandOutputs.push(await this.runPostDeployHealthCheck(target));
 
       const deployedCommit = await this.readGitCommit(target.workingDirectory);
       const outputSummary = summarizeOutput(commandOutputs.join('\n'));
@@ -169,6 +190,27 @@ export class DeploymentService {
     return [result.stdout.trim(), result.stderr.trim()]
       .filter((value) => value.length > 0)
       .join('\n');
+  }
+
+  private async runPostDeployHealthCheck(
+    target: DeployTargetSummary,
+  ): Promise<string> {
+    if (!target.healthTargetName) {
+      return 'Health check skipped: no health target configured.';
+    }
+
+    const healthTarget = await this.healthTargetsService.getEnabledTargetByName(
+      target.healthTargetName,
+    );
+    const probeResult = await this.httpHealthGateway.checkTarget(healthTarget);
+
+    if (probeResult.status !== HealthCheckStatus.HEALTHY) {
+      throw new Error(
+        `Health check "${healthTarget.displayName}" failed after deploy: ${probeResult.errorMessage ?? 'service is not healthy'}`,
+      );
+    }
+
+    return `Health check "${healthTarget.displayName}" passed (HTTP ${probeResult.statusCode ?? 'n/a'}, ${probeResult.responseTimeMs}ms).`;
   }
 }
 
