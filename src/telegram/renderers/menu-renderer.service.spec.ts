@@ -1,5 +1,5 @@
 import { TelegramBotContext } from '../context/telegram-context';
-import { createOwnerHomeKeyboard } from '../keyboards/home.keyboard';
+import { buildKeyboard } from '../keyboards/home.keyboard';
 import { TelegramMenuRenderer } from './menu-renderer.service';
 
 function createCallbackContext() {
@@ -28,7 +28,7 @@ describe('TelegramMenuRenderer', () => {
 
     await renderer.renderScreen(context, {
       text: 'fallback message',
-      keyboard: createOwnerHomeKeyboard(),
+      keyboard: buildKeyboard([]),
     });
 
     expect(editMessageTextMock).toHaveBeenCalled();

@@ -4,7 +4,11 @@ import { LoggerModule, Params } from 'nestjs-pino';
 import { DatabaseModule } from './database/database.module';
 import { configuration } from './config/configuration';
 import { validateEnvironment } from './config/env.schema';
+import { AuditModule } from './modules/audit/audit.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
+import { RbacModule } from './modules/rbac/rbac.module';
+import { UsersModule } from './modules/users/users.module';
 import { TelegramModule } from './telegram/telegram.module';
 
 const loggerConfig: Params = {
@@ -43,6 +47,10 @@ const loggerConfig: Params = {
     }),
     LoggerModule.forRoot(loggerConfig),
     DatabaseModule,
+    UsersModule,
+    RbacModule,
+    AuditModule,
+    AuthModule,
     HealthModule,
     TelegramModule,
   ],

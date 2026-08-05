@@ -17,3 +17,4 @@ Updated: 2026-08-05
 3. Docker, Docker Compose, Node.js, and pnpm are available in the local environment, so local verification can include build/test and later Compose validation.
 4. The initial Prisma migration is generated from schema diff because the Docker daemon is unavailable in this environment; it should be applied against a live PostgreSQL instance in a later verification pass.
 5. The Telegram shell stays owner-only for now using `TELEGRAM_OWNER_USER_ID` until the user repository and RBAC layer are implemented in the next milestone.
+6. The first production-ready rate limit layer is an in-memory per-user throttle for Telegram interactions; Redis-backed distributed throttling can replace it later without changing the Telegram handler contract.

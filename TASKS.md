@@ -27,8 +27,8 @@ Updated: 2026-08-05
 
 ## Milestone 3 - Auth and RBAC
 
-- [ ] Add owner bootstrap, user persistence, role model, and permission checks.
-- [ ] Add audit foundation and rate limiting.
+- [x] Add owner bootstrap, user persistence, role model, and permission checks.
+- [x] Add audit foundation and rate limiting.
 
 ## Remaining Milestones
 

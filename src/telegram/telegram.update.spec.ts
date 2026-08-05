@@ -1,6 +1,9 @@
-import { ConfigModule } from '@nestjs/config';
-import { Test, TestingModule } from '@nestjs/testing';
+import { UserRole, UserStatus } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
+import { AuthService } from 'src/modules/auth/auth.service';
+import { AuditService } from 'src/modules/audit/audit.service';
+import { RbacService } from 'src/modules/rbac/rbac.service';
 import { TELEGRAM_CALLBACKS } from './callbacks/callback-data';
 import { TelegramBotContext } from './context/telegram-context';
 import { TelegramNavigationService } from './navigation/navigation.service';
@@ -24,8 +27,8 @@ function createMockContext(
     from: { id: userId },
     update:
       mode === 'callback'
-        ? { callback_query: { id: 'callback-id' } }
-        : { message: { message_id: 1 } },
+        ? { update_id: 1, callback_query: { id: 'callback-id' } }
+        : { update_id: 1, message: { message_id: 1 } },
     reply: replyMock,
     editMessageText: editMessageTextMock,
     answerCbQuery: answerCbQueryMock,
@@ -41,51 +44,52 @@ function createMockContext(
 
 describe('TelegramUpdate', () => {
   let telegramUpdate: TelegramUpdate;
+  let authService: { authorizeTelegramContext: jest.Mock };
+  let auditService: { record: jest.Mock };
+  let rateLimitService: { consume: jest.Mock };
 
-  beforeAll(() => {
-    process.env.NODE_ENV = 'test';
-    process.env.APP_NAME = 'TeleOps Test';
-    process.env.APP_TIMEZONE = 'Asia/Ho_Chi_Minh';
-    process.env.LOG_LEVEL = 'silent';
-    process.env.PORT = '3001';
-    process.env.TELEGRAM_BOT_TOKEN = 'test-bot-token';
-    process.env.TELEGRAM_OWNER_USER_ID = '123456789';
-    process.env.DATABASE_URL =
-      'postgresql://teleops:teleops@localhost:5432/teleops';
-    process.env.REDIS_URL = 'redis://localhost:6379';
-    process.env.DOCKER_HOST = 'unix:///var/run/docker.sock';
-    process.env.DEPLOY_TARGETS_CONFIG_PATH = '/app/config/deploy-targets.yaml';
-    process.env.HEALTH_TARGETS_CONFIG_PATH = '/app/config/health-targets.yaml';
-    process.env.ALERT_RULES_CONFIG_PATH = '/app/config/alert-rules.yaml';
-    process.env.BACKUP_DIRECTORY = '/data/backups';
+  beforeEach(() => {
+    authService = {
+      authorizeTelegramContext: jest.fn(),
+    };
+    auditService = {
+      record: jest.fn().mockResolvedValue(undefined),
+    };
+    rateLimitService = {
+      consume: jest.fn().mockReturnValue({ allowed: true }),
+    };
+
+    telegramUpdate = new TelegramUpdate(
+      authService as unknown as AuthService,
+      auditService as unknown as AuditService,
+      new RbacService(),
+      rateLimitService as unknown as TelegramRateLimitService,
+      new TelegramNavigationService(new RbacService()),
+      new TelegramMenuRenderer(),
+      {
+        error: jest.fn(),
+      } as unknown as PinoLogger,
+    );
   });
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true })],
-      providers: [
-        TelegramUpdate,
-        TelegramNavigationService,
-        TelegramMenuRenderer,
-        {
-          provide: PinoLogger,
-          useValue: {
-            error: jest.fn(),
-          },
-        },
-      ],
-    }).compile();
-
-    telegramUpdate = module.get<TelegramUpdate>(TelegramUpdate);
-  });
-
-  it('renders the owner home screen on /start', async () => {
+  it('renders the authorized home screen on /start', async () => {
     const { context, replyMock } = createMockContext(123456789);
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
 
     await telegramUpdate.handleStart(context);
 
     expect(replyMock).toHaveBeenCalledWith(
-      expect.stringContaining('TeleOps'),
+      expect.stringContaining('Owner User'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),
@@ -95,6 +99,14 @@ describe('TelegramUpdate', () => {
   it('renders the unauthorized screen for unknown users', async () => {
     const { context, replyMock } = createMockContext(999999999);
 
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'unauthorized',
+      telegramUserId: '999999999',
+      reason: 'unknown_user',
+      message:
+        'Tài khoản Telegram này hiện chưa được cấp quyền truy cập TeleOps.',
+    });
+
     await telegramUpdate.handleStart(context);
 
     expect(replyMock).toHaveBeenCalledWith(
@@ -103,11 +115,23 @@ describe('TelegramUpdate', () => {
         parse_mode: 'HTML',
       }),
     );
+    expect(auditService.record).toHaveBeenCalled();
   });
 
-  it('acknowledges callbacks and refreshes the owner home screen', async () => {
+  it('acknowledges callbacks and refreshes the home screen for authorized users', async () => {
     const { context, answerCbQueryMock, editMessageTextMock } =
       createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
 
     await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.refresh);
 

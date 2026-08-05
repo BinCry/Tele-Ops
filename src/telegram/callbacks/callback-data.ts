@@ -6,9 +6,12 @@ export const TELEGRAM_CALLBACKS = {
   docker: 'nav:docker',
   logs: 'nav:logs',
   deploy: 'nav:deploy',
+  database: 'nav:database',
+  backup: 'nav:backup',
   monitoring: 'nav:monitoring',
   users: 'nav:users',
   settings: 'nav:settings',
+  audit: 'nav:audit',
 } as const;
 
 export type TelegramCallback =
