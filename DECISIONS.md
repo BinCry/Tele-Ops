@@ -9,6 +9,7 @@ Updated: 2026-08-05
 3. Use `Zod` as the single source of truth for environment validation from Milestone 0 onward.
 4. Use `nestjs-pino` for structured logging so later Telegram, HTTP, and job flows share the same logging pipeline.
 5. Keep Telegram UI copy in Vietnamese while source code identifiers remain English, matching the product prompt.
+6. System metrics are gathered through `systeminformation` inside a narrow gateway adapter so Telegram and dashboard flows can stay testable with mocks.
 
 ## Assumptions
 

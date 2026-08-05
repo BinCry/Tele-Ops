@@ -4,8 +4,10 @@ import { PinoLogger } from 'nestjs-pino';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
 import { RbacService } from 'src/modules/rbac/rbac.service';
+import { ServerService } from 'src/modules/server/server.service';
 import {
   TELEGRAM_CALLBACKS,
   TelegramCallback,
@@ -51,6 +53,8 @@ export class TelegramUpdate {
     private readonly auditService: AuditService,
     private readonly rbacService: RbacService,
     private readonly rateLimitService: TelegramRateLimitService,
+    private readonly dashboardService: DashboardService,
+    private readonly serverService: ServerService,
     private readonly navigationService: TelegramNavigationService,
     private readonly menuRenderer: TelegramMenuRenderer,
     private readonly logger: PinoLogger,
@@ -186,6 +190,70 @@ export class TelegramUpdate {
       return;
     }
 
+    if (callbackData === TELEGRAM_CALLBACKS.dashboard) {
+      const dashboardSnapshot =
+        await this.dashboardService.getDashboardSnapshot(
+          authorizationResult.user.role,
+        );
+
+      await context.answerCbQuery('Đang mở Dashboard...');
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.dashboard',
+        resourceType: 'telegram_callback',
+        resourceId: callbackData,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '📊 <b>Dashboard</b>',
+          '',
+          `Ứng dụng: <b>${dashboardSnapshot.appName}</b>`,
+          `Môi trường: <b>${dashboardSnapshot.environment}</b>`,
+          `Timezone: <b>${dashboardSnapshot.timezone}</b>`,
+          `Host: <b>${dashboardSnapshot.hostname}</b>`,
+          `CPU: <b>${formatPercent(dashboardSnapshot.cpuUsagePercent)}</b>`,
+          `RAM: <b>${formatPercent(dashboardSnapshot.memoryUsagePercent)}</b>`,
+          `Disk: <b>${formatPercent(dashboardSnapshot.diskUsagePercent)}</b>`,
+          `Uptime: <b>${formatDuration(dashboardSnapshot.uptimeSeconds)}</b>`,
+        ].join('\n'),
+        keyboard:
+          this.navigationService.buildFeaturePlaceholder('Dashboard').keyboard,
+      });
+      return;
+    }
+
+    if (callbackData === TELEGRAM_CALLBACKS.server) {
+      const serverSnapshot = await this.serverService.getServerSnapshot();
+
+      await context.answerCbQuery('Đang tải thông tin server...');
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.server',
+        resourceType: 'telegram_callback',
+        resourceId: callbackData,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '🖥 <b>Server</b>',
+          '',
+          `Host: <b>${serverSnapshot.hostname}</b>`,
+          `Nền tảng: <b>${serverSnapshot.platform}</b>`,
+          `Hệ điều hành: <b>${serverSnapshot.distro} ${serverSnapshot.release}</b>`,
+          `Uptime: <b>${formatDuration(serverSnapshot.uptimeSeconds)}</b>`,
+          `CPU hiện tại: <b>${formatPercent(serverSnapshot.cpuUsagePercent)}</b>`,
+          `RAM: <b>${formatBytes(serverSnapshot.memoryUsedBytes)}</b> / <b>${formatBytes(serverSnapshot.memoryTotalBytes)}</b>`,
+          `Disk: <b>${formatBytes(serverSnapshot.diskUsedBytes)}</b> / <b>${formatBytes(serverSnapshot.diskTotalBytes)}</b>`,
+        ].join('\n'),
+        keyboard:
+          this.navigationService.buildFeaturePlaceholder('Server').keyboard,
+      });
+      return;
+    }
+
     const requiredPermission = CALLBACK_PERMISSIONS[callbackData];
 
     if (
@@ -244,4 +312,37 @@ export class TelegramUpdate {
       value as TelegramCallback,
     );
   }
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(1)}%`;
+}
+
+function formatBytes(value: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let currentValue = value;
+  let unitIndex = 0;
+
+  while (currentValue >= 1024 && unitIndex < units.length - 1) {
+    currentValue /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${currentValue.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function formatDuration(totalSeconds: number): string {
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return `${minutes}m`;
 }

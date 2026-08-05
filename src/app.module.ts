@@ -6,8 +6,10 @@ import { configuration } from './config/configuration';
 import { validateEnvironment } from './config/env.schema';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { HealthModule } from './modules/health/health.module';
 import { RbacModule } from './modules/rbac/rbac.module';
+import { ServerModule } from './modules/server/server.module';
 import { UsersModule } from './modules/users/users.module';
 import { TelegramModule } from './telegram/telegram.module';
 
@@ -51,6 +53,8 @@ const loggerConfig: Params = {
     RbacModule,
     AuditModule,
     AuthModule,
+    ServerModule,
+    DashboardModule,
     HealthModule,
     TelegramModule,
   ],

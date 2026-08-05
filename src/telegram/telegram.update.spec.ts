@@ -3,7 +3,9 @@ import { PinoLogger } from 'nestjs-pino';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import { RbacService } from 'src/modules/rbac/rbac.service';
+import { ServerService } from 'src/modules/server/server.service';
 import { TELEGRAM_CALLBACKS } from './callbacks/callback-data';
 import { TelegramBotContext } from './context/telegram-context';
 import { TelegramNavigationService } from './navigation/navigation.service';
@@ -47,6 +49,8 @@ describe('TelegramUpdate', () => {
   let authService: { authorizeTelegramContext: jest.Mock };
   let auditService: { record: jest.Mock };
   let rateLimitService: { consume: jest.Mock };
+  let dashboardService: { getDashboardSnapshot: jest.Mock };
+  let serverService: { getServerSnapshot: jest.Mock };
 
   beforeEach(() => {
     authService = {
@@ -58,12 +62,20 @@ describe('TelegramUpdate', () => {
     rateLimitService = {
       consume: jest.fn().mockReturnValue({ allowed: true }),
     };
+    dashboardService = {
+      getDashboardSnapshot: jest.fn(),
+    };
+    serverService = {
+      getServerSnapshot: jest.fn(),
+    };
 
     telegramUpdate = new TelegramUpdate(
       authService as unknown as AuthService,
       auditService as unknown as AuditService,
       new RbacService(),
       rateLimitService as unknown as TelegramRateLimitService,
+      dashboardService as unknown as DashboardService,
+      serverService as unknown as ServerService,
       new TelegramNavigationService(new RbacService()),
       new TelegramMenuRenderer(),
       {

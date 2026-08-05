@@ -40,6 +40,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      systeminformation:
+        specifier: ^5.27.7
+        version: 5.33.1
       telegraf:
         specifier: ^4.16.3
         version: 4.16.3
@@ -5045,6 +5048,15 @@ packages:
       }
     engines: { node: ^14.18.0 || >=16.0.0 }
 
+  systeminformation@5.33.1:
+    resolution:
+      {
+        integrity: sha512-DEN6ICHk3Tk0Uf/hrAHh7xlt7iL5CJFBtPZinA0H62DrGG/KPKqq/Nzj6lCXPS4Ay/sf/14zNnk9LpqKzBIc+w==,
+      }
+    engines: { node: '>=10.0.0' }
+    os: [darwin, linux, win32, freebsd, openbsd, netbsd, sunos, android]
+    hasBin: true
+
   tapable@2.3.3:
     resolution:
       {
@@ -8815,6 +8827,8 @@ snapshots:
   synckit@0.11.13:
     dependencies:
       '@pkgr/core': 0.3.6
+
+  systeminformation@5.33.1: {}
 
   tapable@2.3.3: {}
 

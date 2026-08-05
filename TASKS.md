@@ -32,7 +32,7 @@ Updated: 2026-08-05
 
 ## Remaining Milestones
 
-- [ ] M4 Dashboard and server metrics.
+- [x] M4 Dashboard and server metrics.
 - [ ] M5 Docker management.
 - [ ] M6 Deployment workflow.
 - [ ] M7 Database status and backup.

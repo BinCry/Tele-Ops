@@ -14,3 +14,5 @@
 - Added unit coverage for Telegram navigation and renderer behavior without calling the real Telegram API.
 - Added persistent Telegram auth, owner bootstrap, RBAC permission matrix, audit logging foundation, and per-user Telegram rate limiting.
 - Added role-aware home menu rendering so viewers/operators/admins see only the controls they are allowed to access.
+- Added server metrics gateway and dashboard aggregation service backed by `systeminformation`.
+- Added live Telegram screens for `Dashboard` and `Server` with CPU, RAM, disk, hostname, and uptime data.
