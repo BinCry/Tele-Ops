@@ -6,6 +6,7 @@ import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { BackupService } from 'src/modules/backup/backup.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
+import { DeploymentService } from 'src/modules/deploy/deployment.service';
 import { DeployTargetsService } from 'src/modules/deploy/deploy-targets.service';
 import { DockerService } from 'src/modules/docker/docker.service';
 import { RbacService } from 'src/modules/rbac/rbac.service';
@@ -69,7 +70,11 @@ describe('TelegramUpdate', () => {
     createBackup: jest.Mock;
   };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
-  let deployTargetsService: { getOverview: jest.Mock };
+  let deploymentService: { runDeployment: jest.Mock };
+  let deployTargetsService: {
+    getOverview: jest.Mock;
+    getEnabledTargetByName: jest.Mock;
+  };
   let dockerService: {
     getOverview: jest.Mock;
     getRecentLogs: jest.Mock;
@@ -108,8 +113,12 @@ describe('TelegramUpdate', () => {
     dashboardService = {
       getDashboardSnapshot: jest.fn(),
     };
+    deploymentService = {
+      runDeployment: jest.fn(),
+    };
     deployTargetsService = {
       getOverview: jest.fn(),
+      getEnabledTargetByName: jest.fn(),
     };
     dockerService = {
       getOverview: jest.fn(),
@@ -137,6 +146,7 @@ describe('TelegramUpdate', () => {
       rateLimitService as unknown as TelegramRateLimitService,
       backupService as unknown as BackupService,
       dashboardService as unknown as DashboardService,
+      deploymentService as unknown as DeploymentService,
       deployTargetsService as unknown as DeployTargetsService,
       dockerService as unknown as DockerService,
       serverService as unknown as ServerService,
@@ -353,6 +363,58 @@ describe('TelegramUpdate', () => {
     );
   });
 
+  it('creates a confirmation flow for deploy execution requests', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    deployTargetsService.getEnabledTargetByName.mockResolvedValue({
+      name: 'teleops-prod',
+      displayName: 'TeleOps Production',
+      workingDirectory: '/opt/teleops',
+      repositoryUrl: 'https://github.com/BinCry/Tele-Ops.git',
+      branch: 'main',
+      composeFile: 'docker-compose.production.yml',
+      composeProject: 'teleops',
+      healthTargetName: 'teleops-http',
+      enabled: true,
+    });
+    actionRequestService.createPendingRequest.mockResolvedValue({
+      id: 'request-1',
+      token: '6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:deploy:run:teleops-prod',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Cần xác nhận chạy deployment.',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('TeleOps Production'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+    expect(actionRequestService.createPendingRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: 'deploy.run',
+        resourceId: 'teleops-prod',
+      }),
+    );
+  });
+
   it('renders the deploy overview screen for authorized users', async () => {
     const { context, answerCbQueryMock, editMessageTextMock } =
       createMockContext(123456789, 'callback');
@@ -396,6 +458,25 @@ describe('TelegramUpdate', () => {
       expect.stringContaining('TeleOps Production'),
       expect.objectContaining({
         parse_mode: 'HTML',
+      }),
+    );
+    const firstCall = editMessageTextMock.mock.calls.at(0) as
+      | [
+          string,
+          {
+            parse_mode: string;
+            reply_markup: {
+              inline_keyboard: Array<Array<{ callback_data?: string }>>;
+            };
+          },
+        ]
+      | undefined;
+
+    expect(firstCall).toBeDefined();
+    expect(firstCall?.[1].parse_mode).toBe('HTML');
+    expect(firstCall?.[1].reply_markup.inline_keyboard.flat()).toContainEqual(
+      expect.objectContaining({
+        callback_data: 'action:deploy:run:teleops-prod',
       }),
     );
   });
@@ -443,5 +524,55 @@ describe('TelegramUpdate', () => {
       }),
     );
     expect(backupService.createBackup).toHaveBeenCalledWith('user-1');
+  });
+
+  it('executes deployment after confirmation', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.resolveForActor.mockResolvedValue({
+      status: 'ready',
+      request: {
+        id: 'request-1',
+        actionType: 'deploy.run',
+        resourceType: 'deployment_target',
+        resourceId: 'teleops-prod',
+      },
+    });
+    deploymentService.runDeployment.mockResolvedValue({
+      targetName: 'TeleOps Production',
+      previousCommit: '1111111111111111111111111111111111111111',
+      deployedCommit: '2222222222222222222222222222222222222222',
+      outputSummary: 'docker compose up -d --build',
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:confirm:6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Đã chạy deployment thành công.',
+    );
+    expect(deploymentService.runDeployment).toHaveBeenCalledWith(
+      'teleops-prod',
+      'user-1',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('TeleOps Production'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
   });
 });

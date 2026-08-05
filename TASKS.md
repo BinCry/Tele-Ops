@@ -52,6 +52,7 @@ Updated: 2026-08-05
 - [x] Added Telegram-triggered backup execution with confirmation tokens and audit trail.
 - [x] Added deployment target config loading and Telegram deploy overview from YAML configuration.
 - [x] Added backend deployment execution foundation with safe process runner, persisted `DeploymentRun`, and target-directory path validation.
+- [x] Added Telegram-triggered deployment confirmations and execution for configured targets.
 - [ ] Finish backup artifact delivery and download constraints.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
-- [ ] Add deployment execution, locking, and rollback flow.
+- [ ] Add deployment locking, health validation, and rollback flow.

@@ -10,6 +10,10 @@ import {
   BackupService,
 } from 'src/modules/backup/backup.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
+import {
+  DeploymentExecutionResult,
+  DeploymentService,
+} from 'src/modules/deploy/deployment.service';
 import { DeployTargetsService } from 'src/modules/deploy/deploy-targets.service';
 import { DockerService } from 'src/modules/docker/docker.service';
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
@@ -21,10 +25,12 @@ import {
   buildActionCancelCallback,
   buildActionConfirmCallback,
   buildBackupCreateCallback,
+  buildDeployRunCallback,
   buildDockerActionCallback,
   isBackupCreateCallback,
   parseActionCancelCallback,
   parseActionConfirmCallback,
+  parseDeployRunCallback,
   parseDockerActionCallback,
   TELEGRAM_CALLBACKS,
   TelegramCallback,
@@ -74,6 +80,7 @@ export class TelegramUpdate {
     private readonly rateLimitService: TelegramRateLimitService,
     private readonly backupService: BackupService,
     private readonly dashboardService: DashboardService,
+    private readonly deploymentService: DeploymentService,
     private readonly deployTargetsService: DeployTargetsService,
     private readonly dockerService: DockerService,
     private readonly serverService: ServerService,
@@ -158,6 +165,7 @@ export class TelegramUpdate {
 
     const dockerActionPayload = parseDockerActionCallback(callbackData);
     const backupCreateRequested = isBackupCreateCallback(callbackData);
+    const deployRunTargetName = parseDeployRunCallback(callbackData);
     const confirmToken = parseActionConfirmCallback(callbackData);
     const cancelToken = parseActionCancelCallback(callbackData);
     const navigationCallback = this.isNavigationCallback(callbackData)
@@ -168,6 +176,7 @@ export class TelegramUpdate {
       !navigationCallback &&
       !dockerActionPayload &&
       !backupCreateRequested &&
+      !deployRunTargetName &&
       !confirmToken &&
       !cancelToken
     ) {
@@ -264,6 +273,16 @@ export class TelegramUpdate {
         authorizationResult.user.role,
         dockerActionPayload.action,
         dockerActionPayload.containerShortId,
+      );
+      return;
+    }
+
+    if (deployRunTargetName) {
+      await this.handleDeployRunRequest(
+        context,
+        authorizationResult.user.id,
+        authorizationResult.user.role,
+        deployRunTargetName,
       );
       return;
     }
@@ -398,7 +417,17 @@ export class TelegramUpdate {
             : ['Chưa có deployment target nào được cấu hình.']),
         ].join('\n'),
         keyboard: buildKeyboard(
-          [],
+          this.rbacService.hasPermission(
+            authorizationResult.user.role,
+            PERMISSIONS.deployRun,
+          )
+            ? deployOverview.targets
+                .filter((target) => target.enabled)
+                .map((target) => ({
+                  text: `🚀 ${target.displayName}`,
+                  callback_data: buildDeployRunCallback(target.name),
+                }))
+            : [],
           [
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
             [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
@@ -866,6 +895,77 @@ export class TelegramUpdate {
     });
   }
 
+  private async handleDeployRunRequest(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+    targetName: string,
+  ): Promise<void> {
+    if (!this.rbacService.hasPermission(role, PERMISSIONS.deployRun)) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const target =
+      await this.deployTargetsService.getEnabledTargetByName(targetName);
+    const actionRequest = await this.actionRequestService.createPendingRequest({
+      actorUserId,
+      actionType: 'deploy.run',
+      resourceType: 'deployment_target',
+      resourceId: target.name,
+      payloadJson: {
+        displayName: target.displayName,
+        branch: target.branch,
+        composeProject: target.composeProject,
+      },
+    });
+
+    await this.auditService.record({
+      actorUserId,
+      action: 'telegram.deploy.request',
+      resourceType: 'deployment_target',
+      resourceId: target.name,
+      payloadJson: {
+        branch: target.branch,
+        composeProject: target.composeProject,
+        token: actionRequest.token,
+      },
+      result: AuditResult.STARTED,
+    });
+    await context.answerCbQuery('Cần xác nhận chạy deployment.');
+    await this.menuRenderer.renderScreen(context, {
+      text: [
+        '⚠️ <b>Xác nhận deployment</b>',
+        '',
+        `Target: <b>${escapeHtml(target.displayName)}</b>`,
+        `Branch: <b>${escapeHtml(target.branch)}</b>`,
+        `Compose project: <b>${escapeHtml(target.composeProject)}</b>`,
+        'TeleOps sẽ pull branch đích và chạy docker compose up -d --build.',
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [
+            {
+              text: '✅ Xác nhận',
+              callback_data: buildActionConfirmCallback(actionRequest.token),
+            },
+            {
+              text: '❌ Hủy',
+              callback_data: buildActionCancelCallback(actionRequest.token),
+            },
+          ],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    });
+  }
+
   private async handleConfirmationCallback(
     context: TelegramBotContext,
     actorUserId: string,
@@ -955,6 +1055,35 @@ export class TelegramUpdate {
         await this.menuRenderer.renderScreen(
           context,
           buildBackupSuccessScreen(backupResult),
+        );
+        return;
+      }
+
+      if (
+        resolution.request.actionType === 'deploy.run' &&
+        resolution.request.resourceId
+      ) {
+        const deploymentResult = await this.deploymentService.runDeployment(
+          resolution.request.resourceId,
+          actorUserId,
+        );
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId,
+          action: 'telegram.deploy.execute',
+          resourceType: 'deployment_target',
+          resourceId: resolution.request.resourceId,
+          payloadJson: {
+            previousCommit: deploymentResult.previousCommit,
+            deployedCommit: deploymentResult.deployedCommit,
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã chạy deployment thành công.');
+        await this.menuRenderer.renderScreen(
+          context,
+          buildDeploySuccessScreen(deploymentResult),
         );
         return;
       }
@@ -1105,10 +1234,58 @@ function buildBackupSuccessScreen(backupResult: BackupExecutionResult): {
   };
 }
 
+function buildDeploySuccessScreen(
+  deploymentResult: DeploymentExecutionResult,
+): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  return {
+    text: [
+      '✅ <b>Deployment thành công</b>',
+      '',
+      `Target: <b>${escapeHtml(deploymentResult.targetName)}</b>`,
+      `Commit cũ: <code>${escapeHtml(deploymentResult.previousCommit)}</code>`,
+      `Commit mới: <code>${escapeHtml(deploymentResult.deployedCommit)}</code>`,
+      ...(deploymentResult.outputSummary
+        ? [
+            '',
+            '<b>Tổng kết output</b>',
+            `<code>${escapeHtml(deploymentResult.outputSummary)}</code>`,
+          ]
+        : []),
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: '🚀 Deploy', callback_data: TELEGRAM_CALLBACKS.deploy }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
+}
+
 function buildCancelledScreen(actionType: string): {
   text: string;
   keyboard: ReturnType<typeof buildKeyboard>;
 } {
+  if (actionType === 'deploy.run') {
+    return {
+      text: [
+        '❌ <b>Đã hủy thao tác</b>',
+        '',
+        'Không có thay đổi nào được áp dụng.',
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [{ text: '🚀 Deploy', callback_data: TELEGRAM_CALLBACKS.deploy }],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    };
+  }
+
   const destinationCallback =
     actionType === 'backup.create'
       ? TELEGRAM_CALLBACKS.backup
@@ -1219,6 +1396,10 @@ function getPermissionForActionType(actionType: string): Permission | null {
 
   if (actionType === 'backup.create') {
     return PERMISSIONS.backupRun;
+  }
+
+  if (actionType === 'deploy.run') {
+    return PERMISSIONS.deployRun;
   }
 
   return null;

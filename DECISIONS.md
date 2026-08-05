@@ -27,3 +27,4 @@ Updated: 2026-08-05
 11. Backup creation reuses the same confirmation-token flow as Docker mutations so destructive operational actions share one audit and expiry model.
 12. Deployment targets are sourced from a validated YAML file first so production-safe target definitions stay explicit and out of Telegram free-form input.
 13. Deployment command execution is isolated behind a safe process runner so file-path validation and argument construction stay centralized before Telegram is allowed to trigger real deploys.
+14. Telegram deployment actions reuse the same persisted confirmation-token model as Docker and backup flows so risky operations stay actor-bound, time-bounded, and fully auditable.

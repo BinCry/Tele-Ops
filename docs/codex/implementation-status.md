@@ -17,15 +17,10 @@ Updated: 2026-08-05
 - Telegram-triggered backup execution with confirmation flow is implemented locally and verified.
 - Deployment target config loading and Telegram deploy overview are implemented locally and verified.
 - Backend deployment execution foundation with persisted run records and safe path validation is implemented locally and verified.
+- Telegram-triggered deployment confirmation and execution are implemented locally and verified.
 - Prisma schema, seed flow, migration SQL, Compose files, Dockerfile, CI workflow, Telegram shell, access control, server visibility, and Docker read-only visibility are present.
 
 ## Next Checkpoint
 
-- Commit and push the database/backup visibility slice.
-- Commit and push the users/settings/audit + permission-hardening slice.
-- Commit and push the Docker confirmation slice.
-- Commit and push the backup execution foundation slice.
-- Commit and push the Telegram backup execution slice.
-- Commit and push the deploy overview foundation slice.
-- Commit and push the deploy execution foundation slice.
-- Continue with deploy confirmation/trigger wiring, backup artifact delivery, and remaining production-readiness gaps.
+- Commit and push the Telegram deploy execution slice.
+- Continue with deployment locking/health validation, backup artifact delivery, monitoring/alerts, and remaining production-readiness gaps.
