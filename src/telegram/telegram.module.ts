@@ -5,6 +5,7 @@ import { AuthModule } from 'src/modules/auth/auth.module';
 import { AuditModule } from 'src/modules/audit/audit.module';
 import { BackupModule } from 'src/modules/backup/backup.module';
 import { DashboardModule } from 'src/modules/dashboard/dashboard.module';
+import { DeployModule } from 'src/modules/deploy/deploy.module';
 import { DockerModule } from 'src/modules/docker/docker.module';
 import { RbacModule } from 'src/modules/rbac/rbac.module';
 import { ServerModule } from 'src/modules/server/server.module';
@@ -24,6 +25,7 @@ import { TelegramUpdate } from './telegram.update';
     BackupModule,
     ServerModule,
     DashboardModule,
+    DeployModule,
     DockerModule,
     UsersModule,
     SettingsModule,

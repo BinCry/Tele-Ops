@@ -25,3 +25,4 @@ Updated: 2026-08-05
 9. Docker mutations use persisted confirmation tokens in `ActionRequest` records so approval is single-use, time-bounded, actor-bound, and auditable from the start.
 10. Backup execution is implemented behind a dedicated PostgreSQL backup gateway so `pg_dump` invocation, checksuming, and retention cleanup stay outside Telegram transport code.
 11. Backup creation reuses the same confirmation-token flow as Docker mutations so destructive operational actions share one audit and expiry model.
+12. Deployment targets are sourced from a validated YAML file first so production-safe target definitions stay explicit and out of Telegram free-form input.

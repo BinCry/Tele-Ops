@@ -9,6 +9,7 @@ import { ActionRequestModule } from './modules/action-request/action-request.mod
 import { AuthModule } from './modules/auth/auth.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DeployModule } from './modules/deploy/deploy.module';
 import { DockerModule } from './modules/docker/docker.module';
 import { HealthModule } from './modules/health/health.module';
 import { RbacModule } from './modules/rbac/rbac.module';
@@ -61,6 +62,7 @@ const loggerConfig: Params = {
     BackupModule,
     ServerModule,
     DashboardModule,
+    DeployModule,
     DockerModule,
     HealthModule,
     SettingsModule,

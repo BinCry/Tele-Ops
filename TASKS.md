@@ -50,5 +50,7 @@ Updated: 2026-08-05
 - [x] Added persisted Docker action confirmations with backend token validation and role-gated start/stop/restart flows.
 - [x] Added backend backup execution foundation with `pg_dump` gateway, persisted `BackupRecord`, checksum generation, and retention cleanup.
 - [x] Added Telegram-triggered backup execution with confirmation tokens and audit trail.
+- [x] Added deployment target config loading and Telegram deploy overview from YAML configuration.
 - [ ] Finish backup artifact delivery and download constraints.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
+- [ ] Add deployment execution, locking, and rollback flow.

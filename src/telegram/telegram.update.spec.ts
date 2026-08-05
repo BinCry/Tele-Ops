@@ -6,6 +6,7 @@ import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { BackupService } from 'src/modules/backup/backup.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
+import { DeployTargetsService } from 'src/modules/deploy/deploy-targets.service';
 import { DockerService } from 'src/modules/docker/docker.service';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
@@ -68,6 +69,7 @@ describe('TelegramUpdate', () => {
     createBackup: jest.Mock;
   };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
+  let deployTargetsService: { getOverview: jest.Mock };
   let dockerService: {
     getOverview: jest.Mock;
     getRecentLogs: jest.Mock;
@@ -106,6 +108,9 @@ describe('TelegramUpdate', () => {
     dashboardService = {
       getDashboardSnapshot: jest.fn(),
     };
+    deployTargetsService = {
+      getOverview: jest.fn(),
+    };
     dockerService = {
       getOverview: jest.fn(),
       getRecentLogs: jest.fn(),
@@ -132,6 +137,7 @@ describe('TelegramUpdate', () => {
       rateLimitService as unknown as TelegramRateLimitService,
       backupService as unknown as BackupService,
       dashboardService as unknown as DashboardService,
+      deployTargetsService as unknown as DeployTargetsService,
       dockerService as unknown as DockerService,
       serverService as unknown as ServerService,
       usersService as unknown as UsersService,
@@ -341,6 +347,53 @@ describe('TelegramUpdate', () => {
     expect(answerCbQueryMock).toHaveBeenCalledWith('Cần xác nhận tạo backup.');
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('pg_dump'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('renders the deploy overview screen for authorized users', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    deployTargetsService.getOverview.mockResolvedValue({
+      configPath: '/app/config/deploy-targets.yaml',
+      fileExists: true,
+      enabledTargetCount: 1,
+      disabledTargetCount: 0,
+      targets: [
+        {
+          name: 'teleops-prod',
+          displayName: 'TeleOps Production',
+          workingDirectory: '/opt/teleops',
+          repositoryUrl: 'https://github.com/BinCry/Tele-Ops.git',
+          branch: 'main',
+          composeFile: 'docker-compose.production.yml',
+          composeProject: 'teleops',
+          healthTargetName: 'teleops-http',
+          enabled: true,
+        },
+      ],
+    });
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.deploy);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Đang tải deployment targets...',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('TeleOps Production'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),

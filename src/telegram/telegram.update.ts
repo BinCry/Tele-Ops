@@ -10,6 +10,7 @@ import {
   BackupService,
 } from 'src/modules/backup/backup.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
+import { DeployTargetsService } from 'src/modules/deploy/deploy-targets.service';
 import { DockerService } from 'src/modules/docker/docker.service';
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
 import { RbacService } from 'src/modules/rbac/rbac.service';
@@ -73,6 +74,7 @@ export class TelegramUpdate {
     private readonly rateLimitService: TelegramRateLimitService,
     private readonly backupService: BackupService,
     private readonly dashboardService: DashboardService,
+    private readonly deployTargetsService: DeployTargetsService,
     private readonly dockerService: DockerService,
     private readonly serverService: ServerService,
     private readonly usersService: UsersService,
@@ -363,6 +365,45 @@ export class TelegramUpdate {
         ].join('\n'),
         keyboard:
           this.navigationService.buildFeaturePlaceholder('Database').keyboard,
+      });
+      return;
+    }
+
+    if (navigationCallback === TELEGRAM_CALLBACKS.deploy) {
+      const deployOverview = await this.deployTargetsService.getOverview();
+
+      await context.answerCbQuery('Đang tải deployment targets...');
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.deploy',
+        resourceType: 'telegram_callback',
+        resourceId: navigationCallback,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '🚀 <b>Deploy</b>',
+          '',
+          `File cấu hình: <code>${escapeHtml(deployOverview.configPath)}</code>`,
+          `Trạng thái file: <b>${deployOverview.fileExists ? '🟢 Tìm thấy' : '🔴 Chưa có file'}</b>`,
+          `Targets bật: <b>${deployOverview.enabledTargetCount}</b>`,
+          `Targets tắt: <b>${deployOverview.disabledTargetCount}</b>`,
+          '',
+          ...(deployOverview.targets.length > 0
+            ? deployOverview.targets.map(
+                (target, index) =>
+                  `${index + 1}. <b>${escapeHtml(target.displayName)}</b> | ${target.enabled ? 'enabled' : 'disabled'} | branch ${escapeHtml(target.branch)} | compose ${escapeHtml(target.composeProject)}`,
+              )
+            : ['Chưa có deployment target nào được cấu hình.']),
+        ].join('\n'),
+        keyboard: buildKeyboard(
+          [],
+          [
+            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+          ],
+        ),
       });
       return;
     }
