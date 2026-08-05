@@ -11,7 +11,9 @@ import { TelegramUpdate } from './telegram.update';
 
 @Injectable()
 export class TelegramService implements OnModuleInit, OnApplicationShutdown {
+  private static readonly LAUNCH_TIMEOUT_MS = 15_000;
   private bot?: Telegraf<TelegramBotContext>;
+  private launchPromise?: Promise<void>;
 
   constructor(
     private readonly configService: ConfigService,
@@ -19,7 +21,7 @@ export class TelegramService implements OnModuleInit, OnApplicationShutdown {
     private readonly logger: PinoLogger,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     if (this.configService.get<string>('NODE_ENV') === 'test') {
       return;
     }
@@ -50,15 +52,41 @@ export class TelegramService implements OnModuleInit, OnApplicationShutdown {
       }
     });
 
-    await this.bot.launch({
-      dropPendingUpdates: true,
-    });
-
-    this.logger.info('Telegram bot launched in polling mode.');
+    this.launchPromise = this.launchBotInBackground();
   }
 
   onApplicationShutdown(): void {
     this.bot?.stop('Nest shutdown');
+  }
+
+  private async launchBotInBackground(): Promise<void> {
+    if (!this.bot) {
+      return;
+    }
+
+    try {
+      await Promise.race([
+        this.bot.launch({
+          dropPendingUpdates: true,
+        }),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(
+              new Error(
+                `Telegram bot launch timed out after ${TelegramService.LAUNCH_TIMEOUT_MS}ms.`,
+              ),
+            );
+          }, TelegramService.LAUNCH_TIMEOUT_MS);
+        }),
+      ]);
+
+      this.logger.info('Telegram bot launched in polling mode.');
+    } catch (error) {
+      this.logger.error(
+        { err: error },
+        'Telegram bot launch failed; HTTP service will remain available.',
+      );
+    }
   }
 
   private registerHandlers(bot: Telegraf<TelegramBotContext>): void {
