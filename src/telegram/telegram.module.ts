@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { ActionRequestModule } from 'src/modules/action-request/action-request.module';
+import { AlertsModule } from 'src/modules/alerts/alerts.module';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { AuditModule } from 'src/modules/audit/audit.module';
 import { BackupModule } from 'src/modules/backup/backup.module';
@@ -21,6 +22,7 @@ import { TelegramUpdate } from './telegram.update';
   imports: [
     AuthModule,
     ActionRequestModule,
+    AlertsModule,
     AuditModule,
     RbacModule,
     BackupModule,

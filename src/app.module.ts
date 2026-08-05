@@ -4,6 +4,7 @@ import { LoggerModule, Params } from 'nestjs-pino';
 import { DatabaseModule } from './database/database.module';
 import { configuration } from './config/configuration';
 import { validateEnvironment } from './config/env.schema';
+import { AlertsModule } from './modules/alerts/alerts.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ActionRequestModule } from './modules/action-request/action-request.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -55,6 +56,7 @@ const loggerConfig: Params = {
     }),
     LoggerModule.forRoot(loggerConfig),
     DatabaseModule,
+    AlertsModule,
     UsersModule,
     RbacModule,
     ActionRequestModule,

@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { Input } from 'telegraf';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { ActionRequestService } from 'src/modules/action-request/action-request.service';
+import { AlertsService } from 'src/modules/alerts/alerts.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import {
@@ -77,6 +78,7 @@ export class TelegramUpdate {
   constructor(
     private readonly actionRequestService: ActionRequestService,
     private readonly authService: AuthService,
+    private readonly alertsService: AlertsService,
     private readonly auditService: AuditService,
     private readonly rbacService: RbacService,
     private readonly rateLimitService: TelegramRateLimitService,
@@ -506,6 +508,8 @@ export class TelegramUpdate {
 
     if (navigationCallback === TELEGRAM_CALLBACKS.monitoring) {
       const monitoringSnapshot = await this.monitoringService.getOverview();
+      const alertsSnapshot =
+        await this.alertsService.evaluateTargets(monitoringSnapshot);
 
       await context.answerCbQuery('Đang tải monitoring...');
       await this.auditService.record({
@@ -527,6 +531,22 @@ export class TelegramUpdate {
           `Healthy: <b>${monitoringSnapshot.healthyCount}</b>`,
           `Degraded: <b>${monitoringSnapshot.degradedCount}</b>`,
           `Down: <b>${monitoringSnapshot.downCount}</b>`,
+          '',
+          '<b>Alerts</b>',
+          `File rules: <code>${escapeHtml(alertsSnapshot.configPath)}</code>`,
+          `Rules bật: <b>${alertsSnapshot.enabledRuleCount}</b>`,
+          `Rules tắt: <b>${alertsSnapshot.disabledRuleCount}</b>`,
+          `Alerts đang mở: <b>${alertsSnapshot.activeAlertCount}</b>`,
+          `Alerts vừa resolve: <b>${alertsSnapshot.resolvedAlertCount}</b>`,
+          ...(alertsSnapshot.alerts.length > 0
+            ? [
+                '',
+                ...alertsSnapshot.alerts.map(
+                  (alert, index) =>
+                    `${index + 1}. <b>${escapeHtml(alert.displayName)}</b> | ${alert.severity} | ${escapeHtml(alert.summary)} | notify ${alert.notificationState}`,
+                ),
+              ]
+            : []),
           '',
           ...(monitoringSnapshot.targets.length > 0
             ? monitoringSnapshot.targets.map((target, index) =>

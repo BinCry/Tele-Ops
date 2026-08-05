@@ -56,7 +56,8 @@ Updated: 2026-08-05
 - [x] Added health target config loading, live HTTP probes, persisted monitoring samples, and a Telegram `Monitoring` screen.
 - [x] Added deployment soft-locking against active `RUNNING` targets and post-deploy health validation through configured monitoring targets.
 - [x] Added Telegram backup artifact delivery for eligible backup sizes with configured size-limit fallback messaging.
+- [x] Added alert rule config loading, `AlertEvent` open/resolve lifecycle, cooldown-aware notification suppression, and monitoring-integrated alert summaries.
 - [ ] Finish backup artifact delivery and download constraints.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
 - [ ] Add deployment rollback flow.
-- [ ] Add alert rules, cooldown handling, and resolved notifications.
+- [ ] Add background alert evaluation scheduling independent of manual Telegram refresh.

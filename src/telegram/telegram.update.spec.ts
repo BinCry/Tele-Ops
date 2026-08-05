@@ -2,6 +2,7 @@ import { UserRole, UserStatus } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { ActionRequestService } from 'src/modules/action-request/action-request.service';
+import { AlertsService } from 'src/modules/alerts/alerts.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { BackupService } from 'src/modules/backup/backup.service';
@@ -59,6 +60,7 @@ function createMockContext(
 describe('TelegramUpdate', () => {
   let telegramUpdate: TelegramUpdate;
   let authService: { authorizeTelegramContext: jest.Mock };
+  let alertsService: { evaluateTargets: jest.Mock };
   let auditService: { record: jest.Mock };
   let rateLimitService: { consume: jest.Mock };
   let actionRequestService: {
@@ -97,6 +99,9 @@ describe('TelegramUpdate', () => {
   beforeEach(() => {
     authService = {
       authorizeTelegramContext: jest.fn(),
+    };
+    alertsService = {
+      evaluateTargets: jest.fn(),
     };
     actionRequestService = {
       createPendingRequest: jest.fn(),
@@ -155,6 +160,7 @@ describe('TelegramUpdate', () => {
     telegramUpdate = new TelegramUpdate(
       actionRequestService as unknown as ActionRequestService,
       authService as unknown as AuthService,
+      alertsService as unknown as AlertsService,
       auditService as unknown as AuditService,
       new RbacService(),
       rateLimitService as unknown as TelegramRateLimitService,
@@ -536,12 +542,37 @@ describe('TelegramUpdate', () => {
         },
       ],
     });
+    alertsService.evaluateTargets.mockResolvedValue({
+      configPath: '/app/config/alert-rules.yaml',
+      fileExists: true,
+      enabledRuleCount: 1,
+      disabledRuleCount: 0,
+      activeAlertCount: 1,
+      resolvedAlertCount: 0,
+      alerts: [
+        {
+          ruleName: 'teleops-http-down',
+          displayName: 'TeleOps HTTP Down',
+          severity: 'critical',
+          targetName: 'teleops-http',
+          summary: 'TeleOps HTTP: status DOWN',
+          notificationState: 'sent',
+        },
+      ],
+      rules: [],
+    });
 
     await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.monitoring);
 
     expect(answerCbQueryMock).toHaveBeenCalledWith('Đang tải monitoring...');
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('TeleOps HTTP'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('TeleOps HTTP Down'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),
