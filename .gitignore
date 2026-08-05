@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.env
+.env.local
+.env.*.local
+.turbo
+.idea
+.vscode
+.DS_Store
+*.log
+pnpm-debug.log*
+tmp
+data/backups
