@@ -9,6 +9,11 @@ export type TelegramProfile = {
   lastName?: string | undefined;
 };
 
+export type UserSummary = Pick<
+  User,
+  'displayName' | 'telegramUserId' | 'role' | 'status' | 'lastSeenAt'
+>;
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -74,6 +79,27 @@ export class UsersService {
         lastName: profile.lastName ?? null,
         displayName: this.buildDisplayName(profile),
         lastSeenAt: new Date(),
+      },
+    });
+  }
+
+  async listUserSummaries(limit = 8): Promise<UserSummary[]> {
+    return this.prismaService.user.findMany({
+      orderBy: [
+        {
+          role: 'asc',
+        },
+        {
+          createdAt: 'asc',
+        },
+      ],
+      take: limit,
+      select: {
+        displayName: true,
+        telegramUserId: true,
+        role: true,
+        status: true,
+        lastSeenAt: true,
       },
     });
   }

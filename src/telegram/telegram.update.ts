@@ -10,6 +10,8 @@ import { DockerService } from 'src/modules/docker/docker.service';
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
+import { SettingsService } from 'src/modules/settings/settings.service';
+import { UsersService } from 'src/modules/users/users.service';
 import {
   TELEGRAM_CALLBACKS,
   TelegramCallback,
@@ -59,6 +61,8 @@ export class TelegramUpdate {
     private readonly dashboardService: DashboardService,
     private readonly dockerService: DockerService,
     private readonly serverService: ServerService,
+    private readonly usersService: UsersService,
+    private readonly settingsService: SettingsService,
     private readonly navigationService: TelegramNavigationService,
     private readonly menuRenderer: TelegramMenuRenderer,
     private readonly logger: PinoLogger,
@@ -191,6 +195,35 @@ export class TelegramUpdate {
           role: authorizationResult.user.role,
         }),
       );
+      return;
+    }
+
+    const requiredPermission = CALLBACK_PERMISSIONS[callbackData];
+
+    if (
+      requiredPermission &&
+      !this.rbacService.hasPermission(
+        authorizationResult.user.role,
+        requiredPermission,
+      )
+    ) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.callback',
+        resourceType: 'telegram_callback',
+        resourceId: callbackData,
+        requestId: String(context.update.update_id ?? ''),
+        payloadJson: {
+          permission: requiredPermission,
+        },
+        result: AuditResult.DENIED,
+      });
       return;
     }
 
@@ -418,31 +451,94 @@ export class TelegramUpdate {
       return;
     }
 
-    const requiredPermission = CALLBACK_PERMISSIONS[callbackData];
+    if (callbackData === TELEGRAM_CALLBACKS.users) {
+      const users = await this.usersService.listUserSummaries();
 
-    if (
-      requiredPermission &&
-      !this.rbacService.hasPermission(
-        authorizationResult.user.role,
-        requiredPermission,
-      )
-    ) {
-      await context.answerCbQuery(
-        'Bạn không có quyền thực hiện thao tác này.',
-        {
-          show_alert: true,
-        },
-      );
+      await context.answerCbQuery('Đang tải danh sách người dùng...');
       await this.auditService.record({
         actorUserId: authorizationResult.user.id,
-        action: 'telegram.callback',
+        action: 'telegram.users',
         resourceType: 'telegram_callback',
         resourceId: callbackData,
         requestId: String(context.update.update_id ?? ''),
-        payloadJson: {
-          permission: requiredPermission,
-        },
-        result: AuditResult.DENIED,
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '👥 <b>Người dùng</b>',
+          '',
+          ...(users.length > 0
+            ? users.map(
+                (user, index) =>
+                  `${index + 1}. <b>${escapeHtml(user.displayName)}</b> | ${user.role} | ${user.status} | last seen: ${user.lastSeenAt ? user.lastSeenAt.toISOString() : 'never'}`,
+              )
+            : ['Chưa có người dùng nào trong hệ thống.']),
+        ].join('\n'),
+        keyboard:
+          this.navigationService.buildFeaturePlaceholder('Users').keyboard,
+      });
+      return;
+    }
+
+    if (callbackData === TELEGRAM_CALLBACKS.settings) {
+      const settingsSnapshot = await this.settingsService.getSettingsSnapshot();
+
+      await context.answerCbQuery('Đang tải cấu hình...');
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.settings',
+        resourceType: 'telegram_callback',
+        resourceId: callbackData,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '⚙️ <b>Settings</b>',
+          '',
+          `App: <b>${escapeHtml(settingsSnapshot.appName)}</b>`,
+          `Môi trường: <b>${escapeHtml(settingsSnapshot.environment)}</b>`,
+          `Timezone: <b>${escapeHtml(settingsSnapshot.timezone)}</b>`,
+          `Dangerous actions: <b>${settingsSnapshot.dangerousActionsEnabled ? 'Bật' : 'Tắt'}</b>`,
+          `Confirmation TTL: <b>${settingsSnapshot.confirmationTtlSeconds}s</b>`,
+          `Rate limit: <b>${settingsSnapshot.actionRateLimitPerMinute}/phút</b>`,
+          `Encryption key: <b>${settingsSnapshot.encryptionKeyConfigured ? 'Đã cấu hình' : 'Chưa cấu hình'}</b>`,
+          `Allowlist containers: <b>${settingsSnapshot.containerAllowlistCount}</b>`,
+          `Allowlist compose projects: <b>${settingsSnapshot.composeAllowlistCount}</b>`,
+          `Backup directory: <code>${escapeHtml(settingsSnapshot.backupDirectory)}</code>`,
+          `Persisted settings: <b>${settingsSnapshot.persistedSettingCount}</b>`,
+        ].join('\n'),
+        keyboard:
+          this.navigationService.buildFeaturePlaceholder('Settings').keyboard,
+      });
+      return;
+    }
+
+    if (callbackData === TELEGRAM_CALLBACKS.audit) {
+      const entries = await this.auditService.listRecent();
+
+      await context.answerCbQuery('Đang tải audit log...');
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.audit',
+        resourceType: 'telegram_callback',
+        resourceId: callbackData,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '🧾 <b>Audit</b>',
+          '',
+          ...(entries.length > 0
+            ? entries.map(
+                (entry, index) =>
+                  `${index + 1}. <b>${escapeHtml(entry.action)}</b> | ${entry.result} | ${escapeHtml(entry.resourceType)} | ${entry.actorDisplayName ? escapeHtml(entry.actorDisplayName) : 'system'} | ${entry.createdAt.toISOString()}`,
+              )
+            : ['Chưa có bản ghi audit nào.']),
+        ].join('\n'),
+        keyboard:
+          this.navigationService.buildFeaturePlaceholder('Audit').keyboard,
       });
       return;
     }

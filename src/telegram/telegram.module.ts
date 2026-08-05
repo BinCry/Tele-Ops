@@ -7,6 +7,8 @@ import { DashboardModule } from 'src/modules/dashboard/dashboard.module';
 import { DockerModule } from 'src/modules/docker/docker.module';
 import { RbacModule } from 'src/modules/rbac/rbac.module';
 import { ServerModule } from 'src/modules/server/server.module';
+import { SettingsModule } from 'src/modules/settings/settings.module';
+import { UsersModule } from 'src/modules/users/users.module';
 import { TelegramNavigationService } from './navigation/navigation.service';
 import { TelegramMenuRenderer } from './renderers/menu-renderer.service';
 import { TelegramService } from './telegram.service';
@@ -21,6 +23,8 @@ import { TelegramUpdate } from './telegram.update';
     ServerModule,
     DashboardModule,
     DockerModule,
+    UsersModule,
+    SettingsModule,
   ],
   providers: [
     TelegramRateLimitService,

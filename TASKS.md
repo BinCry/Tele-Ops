@@ -45,4 +45,7 @@ Updated: 2026-08-05
 ## In Progress Notes
 
 - [x] Added live Telegram visibility for database connectivity and backup environment readiness.
+- [x] Replaced placeholder Telegram screens for users, settings, and audit with read-only data views.
+- [x] Enforced backend permission checks before every implemented Telegram feature screen.
 - [ ] Finish backup execution jobs, retention handling, and downloadable artifacts.
+- [ ] Finish Docker mutation flows with confirmation tokens and queued execution.

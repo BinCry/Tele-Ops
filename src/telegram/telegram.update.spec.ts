@@ -8,6 +8,8 @@ import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import { DockerService } from 'src/modules/docker/docker.service';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
+import { SettingsService } from 'src/modules/settings/settings.service';
+import { UsersService } from 'src/modules/users/users.service';
 import { TELEGRAM_CALLBACKS } from './callbacks/callback-data';
 import { TelegramBotContext } from './context/telegram-context';
 import { TelegramNavigationService } from './navigation/navigation.service';
@@ -58,6 +60,8 @@ describe('TelegramUpdate', () => {
   let dashboardService: { getDashboardSnapshot: jest.Mock };
   let dockerService: { getOverview: jest.Mock; getRecentLogs: jest.Mock };
   let serverService: { getServerSnapshot: jest.Mock };
+  let usersService: { listUserSummaries: jest.Mock };
+  let settingsService: { getSettingsSnapshot: jest.Mock };
 
   beforeEach(() => {
     authService = {
@@ -83,6 +87,12 @@ describe('TelegramUpdate', () => {
     serverService = {
       getServerSnapshot: jest.fn(),
     };
+    usersService = {
+      listUserSummaries: jest.fn(),
+    };
+    settingsService = {
+      getSettingsSnapshot: jest.fn(),
+    };
 
     telegramUpdate = new TelegramUpdate(
       authService as unknown as AuthService,
@@ -93,6 +103,8 @@ describe('TelegramUpdate', () => {
       dashboardService as unknown as DashboardService,
       dockerService as unknown as DockerService,
       serverService as unknown as ServerService,
+      usersService as unknown as UsersService,
+      settingsService as unknown as SettingsService,
       new TelegramNavigationService(new RbacService()),
       new TelegramMenuRenderer(),
       {
@@ -199,5 +211,32 @@ describe('TelegramUpdate', () => {
         parse_mode: 'HTML',
       }),
     );
+  });
+
+  it('denies a forged docker callback for viewers', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Viewer User',
+        role: UserRole.VIEWER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.docker);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Bạn không có quyền thực hiện thao tác này.',
+      expect.objectContaining({
+        show_alert: true,
+      }),
+    );
+    expect(editMessageTextMock).not.toHaveBeenCalled();
+    expect(dockerService.getOverview).not.toHaveBeenCalled();
   });
 });

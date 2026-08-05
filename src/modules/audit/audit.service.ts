@@ -14,6 +14,15 @@ type AuditEntryInput = {
   errorMessage?: string;
 };
 
+export type RecentAuditEntry = {
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  result: AuditResult;
+  createdAt: Date;
+  actorDisplayName: string | null;
+};
+
 @Injectable()
 export class AuditService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -37,5 +46,30 @@ export class AuditService {
     await this.prismaService.auditLog.create({
       data,
     });
+  }
+
+  async listRecent(limit = 8): Promise<RecentAuditEntry[]> {
+    const entries = await this.prismaService.auditLog.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit,
+      include: {
+        actorUser: {
+          select: {
+            displayName: true,
+          },
+        },
+      },
+    });
+
+    return entries.map((entry) => ({
+      action: entry.action,
+      resourceType: entry.resourceType,
+      resourceId: entry.resourceId,
+      result: entry.result,
+      createdAt: entry.createdAt,
+      actorDisplayName: entry.actorUser?.displayName ?? null,
+    }));
   }
 }
