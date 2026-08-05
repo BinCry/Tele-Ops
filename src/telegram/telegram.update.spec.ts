@@ -3,6 +3,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { BackupService } from 'src/modules/backup/backup.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import { DockerService } from 'src/modules/docker/docker.service';
 import { RbacService } from 'src/modules/rbac/rbac.service';
@@ -50,6 +51,10 @@ describe('TelegramUpdate', () => {
   let authService: { authorizeTelegramContext: jest.Mock };
   let auditService: { record: jest.Mock };
   let rateLimitService: { consume: jest.Mock };
+  let backupService: {
+    getDatabaseStatus: jest.Mock;
+    getBackupOverview: jest.Mock;
+  };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
   let dockerService: { getOverview: jest.Mock; getRecentLogs: jest.Mock };
   let serverService: { getServerSnapshot: jest.Mock };
@@ -63,6 +68,10 @@ describe('TelegramUpdate', () => {
     };
     rateLimitService = {
       consume: jest.fn().mockReturnValue({ allowed: true }),
+    };
+    backupService = {
+      getDatabaseStatus: jest.fn(),
+      getBackupOverview: jest.fn(),
     };
     dashboardService = {
       getDashboardSnapshot: jest.fn(),
@@ -80,6 +89,7 @@ describe('TelegramUpdate', () => {
       auditService as unknown as AuditService,
       new RbacService(),
       rateLimitService as unknown as TelegramRateLimitService,
+      backupService as unknown as BackupService,
       dashboardService as unknown as DashboardService,
       dockerService as unknown as DockerService,
       serverService as unknown as ServerService,
@@ -156,5 +166,38 @@ describe('TelegramUpdate', () => {
 
     expect(answerCbQueryMock).toHaveBeenCalledWith('Đang làm mới Home...');
     expect(editMessageTextMock).toHaveBeenCalled();
+  });
+
+  it('renders the database status screen for authorized users', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    backupService.getDatabaseStatus.mockResolvedValue({
+      host: 'db:5432',
+      databaseName: 'teleops',
+      reachable: true,
+    });
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.database);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Đang tải trạng thái database...',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('db:5432'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
   });
 });

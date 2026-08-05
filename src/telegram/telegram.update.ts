@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { BackupService } from 'src/modules/backup/backup.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import { DockerService } from 'src/modules/docker/docker.service';
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
@@ -54,6 +55,7 @@ export class TelegramUpdate {
     private readonly auditService: AuditService,
     private readonly rbacService: RbacService,
     private readonly rateLimitService: TelegramRateLimitService,
+    private readonly backupService: BackupService,
     private readonly dashboardService: DashboardService,
     private readonly dockerService: DockerService,
     private readonly serverService: ServerService,
@@ -226,6 +228,85 @@ export class TelegramUpdate {
       return;
     }
 
+    if (callbackData === TELEGRAM_CALLBACKS.database) {
+      const databaseSnapshot = await this.backupService.getDatabaseStatus();
+
+      await context.answerCbQuery('Đang tải trạng thái database...');
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.database',
+        resourceType: 'telegram_callback',
+        resourceId: callbackData,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '🗄 <b>Database</b>',
+          '',
+          `Host: <b>${escapeHtml(databaseSnapshot.host)}</b>`,
+          `Database: <b>${escapeHtml(databaseSnapshot.databaseName)}</b>`,
+          databaseSnapshot.reachable
+            ? 'Trạng thái: <b>🟢 Kết nối thành công</b>'
+            : 'Trạng thái: <b>🔴 Không kết nối được</b>',
+          ...(databaseSnapshot.error
+            ? [`Lỗi: <code>${escapeHtml(databaseSnapshot.error)}</code>`]
+            : []),
+        ].join('\n'),
+        keyboard:
+          this.navigationService.buildFeaturePlaceholder('Database').keyboard,
+      });
+      return;
+    }
+
+    if (callbackData === TELEGRAM_CALLBACKS.backup) {
+      const backupSnapshot = await this.backupService.getBackupOverview();
+
+      await context.answerCbQuery('Đang tải trạng thái backup...');
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.backup',
+        resourceType: 'telegram_callback',
+        resourceId: callbackData,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '💾 <b>Backup</b>',
+          '',
+          `Bật backup DB: <b>${backupSnapshot.enabled ? 'Có' : 'Không'}</b>`,
+          `Thư mục backup: <code>${escapeHtml(backupSnapshot.backupDirectory)}</code>`,
+          `Truy cập thư mục: <b>${backupSnapshot.directoryAccessible ? '🟢 OK' : '🔴 Không khả dụng'}</b>`,
+          `pg_dump: <b>${backupSnapshot.pgDumpAvailable ? '🟢 Sẵn sàng' : '🔴 Chưa tìm thấy'}</b>`,
+          ...(backupSnapshot.pgDumpVersion
+            ? [
+                `Phiên bản pg_dump: <code>${escapeHtml(backupSnapshot.pgDumpVersion)}</code>`,
+              ]
+            : []),
+          `Giới hạn gửi Telegram: <b>${backupSnapshot.maxTelegramSizeMb} MB</b>`,
+          '',
+          ...(backupSnapshot.latestBackup
+            ? [
+                'Lần backup gần nhất:',
+                `File: <code>${escapeHtml(backupSnapshot.latestBackup.filename)}</code>`,
+                `Trạng thái: <b>${backupSnapshot.latestBackup.status}</b>`,
+                `Kích thước: <b>${formatBigIntBytes(backupSnapshot.latestBackup.sizeBytes)}</b>`,
+                `Hoàn tất: <b>${backupSnapshot.latestBackup.finishedAt ? backupSnapshot.latestBackup.finishedAt.toISOString() : 'Chưa xong'}</b>`,
+                ...(backupSnapshot.latestBackup.errorMessage
+                  ? [
+                      `Lỗi: <code>${escapeHtml(backupSnapshot.latestBackup.errorMessage)}</code>`,
+                    ]
+                  : []),
+              ]
+            : ['Chưa có bản ghi backup nào trong hệ thống.']),
+        ].join('\n'),
+        keyboard:
+          this.navigationService.buildFeaturePlaceholder('Backup').keyboard,
+      });
+      return;
+    }
+
     if (callbackData === TELEGRAM_CALLBACKS.docker) {
       try {
         const overview = await this.dockerService.getOverview();
@@ -250,7 +331,7 @@ export class TelegramUpdate {
             ...(overview.containers.length > 0
               ? overview.containers.map(
                   (container, index) =>
-                    `${index + 1}. <b>${container.name}</b> | ${container.state} | ${container.status}`,
+                    `${index + 1}. <b>${escapeHtml(container.name)}</b> | ${escapeHtml(container.state)} | ${escapeHtml(container.status)}`,
                 )
               : ['Không tìm thấy container phù hợp.']),
           ].join('\n'),
@@ -284,10 +365,10 @@ export class TelegramUpdate {
             ? [
                 '📄 <b>Logs gần nhất</b>',
                 '',
-                `Container: <b>${logsSnapshot.containerName}</b>`,
+                `Container: <b>${escapeHtml(logsSnapshot.containerName)}</b>`,
                 '',
                 '<pre>',
-                sanitizeLogs(logsSnapshot.lines.join('\n')),
+                escapeHtml(logsSnapshot.lines.join('\n')),
                 '</pre>',
               ].join('\n')
             : [
@@ -323,9 +404,9 @@ export class TelegramUpdate {
         text: [
           '🖥 <b>Server</b>',
           '',
-          `Host: <b>${serverSnapshot.hostname}</b>`,
-          `Nền tảng: <b>${serverSnapshot.platform}</b>`,
-          `Hệ điều hành: <b>${serverSnapshot.distro} ${serverSnapshot.release}</b>`,
+          `Host: <b>${escapeHtml(serverSnapshot.hostname)}</b>`,
+          `Nền tảng: <b>${escapeHtml(serverSnapshot.platform)}</b>`,
+          `Hệ điều hành: <b>${escapeHtml(`${serverSnapshot.distro} ${serverSnapshot.release}`)}</b>`,
           `Uptime: <b>${formatDuration(serverSnapshot.uptimeSeconds)}</b>`,
           `CPU hiện tại: <b>${formatPercent(serverSnapshot.cpuUsagePercent)}</b>`,
           `RAM: <b>${formatBytes(serverSnapshot.memoryUsedBytes)}</b> / <b>${formatBytes(serverSnapshot.memoryTotalBytes)}</b>`,
@@ -414,6 +495,18 @@ function formatBytes(value: number): string {
   return `${currentValue.toFixed(1)} ${units[unitIndex]}`;
 }
 
+function formatBigIntBytes(value: bigint | null): string {
+  if (value === null) {
+    return 'Không rõ';
+  }
+
+  if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    return `${value.toString()} B`;
+  }
+
+  return formatBytes(Number(value));
+}
+
 function formatDuration(totalSeconds: number): string {
   const days = Math.floor(totalSeconds / 86_400);
   const hours = Math.floor((totalSeconds % 86_400) / 3_600);
@@ -430,9 +523,9 @@ function formatDuration(totalSeconds: number): string {
   return `${minutes}m`;
 }
 
-function sanitizeLogs(logs: string): string {
-  return logs.replace(/[<&>]/g, (value) => {
-    switch (value) {
+function escapeHtml(value: string): string {
+  return value.replace(/[<&>]/g, (currentCharacter) => {
+    switch (currentCharacter) {
       case '<':
         return '&lt;';
       case '>':

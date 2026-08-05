@@ -18,3 +18,4 @@
 - Added live Telegram screens for `Dashboard` and `Server` with CPU, RAM, disk, hostname, and uptime data.
 - Added Docker gateway/service groundwork with allowlist-aware container listing and recent log retrieval.
 - Added Telegram Docker and Logs screens with graceful fallback when the Docker daemon is unavailable.
+- Added backup module groundwork with database reachability checks, backup environment probes, and Telegram screens for `Database` and `Backup`.

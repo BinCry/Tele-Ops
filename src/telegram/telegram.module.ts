@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { AuditModule } from 'src/modules/audit/audit.module';
+import { BackupModule } from 'src/modules/backup/backup.module';
 import { DashboardModule } from 'src/modules/dashboard/dashboard.module';
 import { DockerModule } from 'src/modules/docker/docker.module';
 import { RbacModule } from 'src/modules/rbac/rbac.module';
@@ -16,6 +17,7 @@ import { TelegramUpdate } from './telegram.update';
     AuthModule,
     AuditModule,
     RbacModule,
+    BackupModule,
     ServerModule,
     DashboardModule,
     DockerModule,

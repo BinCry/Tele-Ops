@@ -41,3 +41,8 @@ Updated: 2026-08-05
 - [ ] M10 Audit UI and hardening.
 - [ ] M11 Documentation and deployment guides.
 - [ ] M12 Final validation and deployment readiness.
+
+## In Progress Notes
+
+- [x] Added live Telegram visibility for database connectivity and backup environment readiness.
+- [ ] Finish backup execution jobs, retention handling, and downloadable artifacts.

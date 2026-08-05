@@ -10,9 +10,10 @@ Updated: 2026-08-05
 - Milestone 3 auth/RBAC, audit foundation, and rate limiting are complete and pushed.
 - Milestone 4 dashboard/server metrics are complete and pushed.
 - Milestone 5 Docker visibility groundwork is implemented locally and verified.
+- Database and backup visibility groundwork is implemented locally and verified.
 - Prisma schema, seed flow, migration SQL, Compose files, Dockerfile, CI workflow, Telegram shell, access control, server visibility, and Docker read-only visibility are present.
 
 ## Next Checkpoint
 
-- Commit and push the Docker visibility slice.
-- Move into Docker action confirmation/jobs and deployment workflows.
+- Commit and push the database/backup visibility slice.
+- Continue by replacing the remaining placeholder screens (`Users`, `Settings`, `Audit`) and then return to Docker mutations and deployment workflows.
