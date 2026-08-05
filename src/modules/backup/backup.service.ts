@@ -40,6 +40,13 @@ export type BackupExecutionResult = {
   sizeBytes: bigint;
 };
 
+export type BackupArtifactResult = {
+  filename: string;
+  storagePath: string;
+  checksumSha256: string | null;
+  sizeBytes: bigint;
+};
+
 export type BackupDeliveryDecision = {
   eligible: boolean;
   maxTelegramSizeMb: number;
@@ -199,6 +206,48 @@ export class BackupService {
     };
   }
 
+  async getLatestSuccessfulBackupArtifactForTelegram(): Promise<BackupArtifactResult> {
+    const latestSuccessfulBackup =
+      await this.prismaService.backupRecord.findFirst({
+        where: {
+          status: BackupStatus.SUCCESS,
+        },
+        orderBy: [{ finishedAt: 'desc' }, { createdAt: 'desc' }],
+      });
+
+    if (!latestSuccessfulBackup) {
+      throw new Error('Chưa có backup thành công nào để gửi.');
+    }
+
+    let fileStat: Awaited<ReturnType<typeof stat>>;
+
+    try {
+      fileStat = await stat(latestSuccessfulBackup.storagePath);
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        throw new Error('File backup gần nhất không còn trên máy chủ.');
+      }
+
+      throw error;
+    }
+
+    const sizeBytes = BigInt(fileStat.size);
+    const deliveryDecision = this.getTelegramDeliveryDecision(sizeBytes);
+
+    if (!deliveryDecision.eligible) {
+      throw new Error(
+        `Backup gần nhất vượt giới hạn ${deliveryDecision.maxTelegramSizeMb} MB của Telegram.`,
+      );
+    }
+
+    return {
+      filename: latestSuccessfulBackup.filename,
+      storagePath: latestSuccessfulBackup.storagePath,
+      checksumSha256: latestSuccessfulBackup.checksumSha256,
+      sizeBytes,
+    };
+  }
+
   private async pruneExpiredBackups(): Promise<void> {
     const retentionDays = this.configService.get<number>(
       'BACKUP_RETENTION_DAYS',
@@ -264,6 +313,15 @@ function buildBackupFilename(): string {
   ];
 
   return `teleops-${parts.join('')}.sql`;
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'ENOENT'
+  );
 }
 
 async function computeSha256(filePath: string): Promise<string> {

@@ -26,6 +26,7 @@ const DOCKER_ACTION_PREFIX = 'action:docker';
 const DEPLOY_RUN_PREFIX = 'action:deploy:run';
 const DEPLOY_ROLLBACK_PREFIX = 'action:deploy:rollback';
 const BACKUP_CREATE_CALLBACK = 'action:backup:create';
+const BACKUP_DOWNLOAD_LATEST_CALLBACK = 'action:backup:download-latest';
 const ACTION_CONFIRM_PREFIX = 'action:confirm';
 const ACTION_CANCEL_PREFIX = 'action:cancel';
 
@@ -59,6 +60,14 @@ export function buildBackupCreateCallback(): string {
 
 export function isBackupCreateCallback(value: string): boolean {
   return value === BACKUP_CREATE_CALLBACK;
+}
+
+export function buildBackupDownloadLatestCallback(): string {
+  return BACKUP_DOWNLOAD_LATEST_CALLBACK;
+}
+
+export function isBackupDownloadLatestCallback(value: string): boolean {
+  return value === BACKUP_DOWNLOAD_LATEST_CALLBACK;
 }
 
 export function buildDeployRunCallback(targetName: string): string {

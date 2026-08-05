@@ -136,4 +136,57 @@ describe('BackupService', () => {
     expect(fileContents).toContain('select 1;');
     expect(prismaService.backupRecord.update).toHaveBeenCalled();
   });
+
+  it('returns the latest successful backup artifact when Telegram delivery is allowed', async () => {
+    const artifactPath = join(backupDirectory, 'latest-backup.sql');
+    await writeFile(artifactPath, 'select 1;\n', 'utf8');
+    prismaService.backupRecord.findFirst.mockResolvedValue({
+      filename: 'latest-backup.sql',
+      storagePath: artifactPath,
+      checksumSha256: 'b'.repeat(64),
+      status: BackupStatus.SUCCESS,
+      finishedAt: new Date('2026-08-05T11:00:00.000Z'),
+      createdAt: new Date('2026-08-05T11:00:00.000Z'),
+    });
+
+    await expect(
+      backupService.getLatestSuccessfulBackupArtifactForTelegram(),
+    ).resolves.toEqual({
+      filename: 'latest-backup.sql',
+      storagePath: artifactPath,
+      checksumSha256: 'b'.repeat(64),
+      sizeBytes: BigInt(10),
+    });
+  });
+
+  it('rejects latest backup delivery when the artifact exceeds the Telegram size limit', async () => {
+    const artifactPath = join(backupDirectory, 'too-large-backup.sql');
+    await writeFile(artifactPath, Buffer.alloc(2 * 1024 * 1024, 1));
+    configService.get.mockImplementation((key: string, fallback?: unknown) => {
+      switch (key) {
+        case 'paths.backupDirectory':
+          return backupDirectory;
+        case 'DATABASE_BACKUP_ENABLED':
+          return true;
+        case 'BACKUP_MAX_TELEGRAM_SIZE_MB':
+          return 1;
+        case 'BACKUP_RETENTION_DAYS':
+          return 7;
+        default:
+          return fallback;
+      }
+    });
+    prismaService.backupRecord.findFirst.mockResolvedValue({
+      filename: 'too-large-backup.sql',
+      storagePath: artifactPath,
+      checksumSha256: 'c'.repeat(64),
+      status: BackupStatus.SUCCESS,
+      finishedAt: new Date('2026-08-05T12:00:00.000Z'),
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+    });
+
+    await expect(
+      backupService.getLatestSuccessfulBackupArtifactForTelegram(),
+    ).rejects.toThrow('Backup gần nhất vượt giới hạn 1 MB của Telegram.');
+  });
 });

@@ -8,6 +8,7 @@ import { AlertsService } from 'src/modules/alerts/alerts.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import {
+  BackupArtifactResult,
   BackupExecutionResult,
   BackupService,
 } from 'src/modules/backup/backup.service';
@@ -30,9 +31,11 @@ import {
   buildActionCancelCallback,
   buildActionConfirmCallback,
   buildBackupCreateCallback,
+  buildBackupDownloadLatestCallback,
   buildDeployRollbackCallback,
   buildDeployRunCallback,
   buildDockerActionCallback,
+  isBackupDownloadLatestCallback,
   isBackupCreateCallback,
   parseActionCancelCallback,
   parseActionConfirmCallback,
@@ -174,6 +177,8 @@ export class TelegramUpdate {
 
     const dockerActionPayload = parseDockerActionCallback(callbackData);
     const backupCreateRequested = isBackupCreateCallback(callbackData);
+    const backupDownloadLatestRequested =
+      isBackupDownloadLatestCallback(callbackData);
     const deployRunTargetName = parseDeployRunCallback(callbackData);
     const deployRollbackTargetName = parseDeployRollbackCallback(callbackData);
     const confirmToken = parseActionConfirmCallback(callbackData);
@@ -186,6 +191,7 @@ export class TelegramUpdate {
       !navigationCallback &&
       !dockerActionPayload &&
       !backupCreateRequested &&
+      !backupDownloadLatestRequested &&
       !deployRunTargetName &&
       !deployRollbackTargetName &&
       !confirmToken &&
@@ -270,6 +276,15 @@ export class TelegramUpdate {
 
     if (backupCreateRequested) {
       await this.handleBackupCreateRequest(
+        context,
+        authorizationResult.user.id,
+        authorizationResult.user.role,
+      );
+      return;
+    }
+
+    if (backupDownloadLatestRequested) {
+      await this.handleLatestBackupDeliveryRequest(
         context,
         authorizationResult.user.id,
         authorizationResult.user.role,
@@ -507,15 +522,22 @@ export class TelegramUpdate {
             : ['Chưa có bản ghi backup nào trong hệ thống.']),
         ].join('\n'),
         keyboard: buildKeyboard(
-          backupSnapshot.enabled &&
-            this.rbacService.hasPermission(
-              authorizationResult.user.role,
-              PERMISSIONS.backupRun,
-            )
+          this.rbacService.hasPermission(
+            authorizationResult.user.role,
+            PERMISSIONS.backupRun,
+          )
             ? [
+                ...(backupSnapshot.enabled
+                  ? [
+                      {
+                        text: '💾 Tạo backup',
+                        callback_data: buildBackupCreateCallback(),
+                      },
+                    ]
+                  : []),
                 {
-                  text: '💾 Tạo backup',
-                  callback_data: buildBackupCreateCallback(),
+                  text: '📦 Gửi backup gần nhất',
+                  callback_data: buildBackupDownloadLatestCallback(),
                 },
               ]
             : [],
@@ -993,6 +1015,59 @@ export class TelegramUpdate {
     });
   }
 
+  private async handleLatestBackupDeliveryRequest(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+  ): Promise<void> {
+    if (!this.rbacService.hasPermission(role, PERMISSIONS.backupRun)) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    let backupArtifact: BackupArtifactResult;
+
+    try {
+      backupArtifact =
+        await this.backupService.getLatestSuccessfulBackupArtifactForTelegram();
+    } catch (error) {
+      await context.answerCbQuery(
+        error instanceof Error
+          ? error.message
+          : 'Không thể gửi backup gần nhất.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    await context.answerCbQuery('Đang gửi backup gần nhất...');
+    const delivered = await this.sendBackupArtifact(
+      context,
+      backupArtifact,
+      '📦 Backup gần nhất',
+      '⚠️ TeleOps đã tìm thấy backup nhưng chưa gửi được file vào Telegram.',
+    );
+
+    await this.auditService.record({
+      actorUserId,
+      action: 'telegram.backup.download_latest',
+      resourceType: 'postgres_backup',
+      resourceId: backupArtifact.filename,
+      payloadJson: {
+        checksumSha256: backupArtifact.checksumSha256,
+        sizeBytes: backupArtifact.sizeBytes.toString(),
+      },
+      result: delivered ? AuditResult.SUCCESS : AuditResult.FAILED,
+    });
+  }
+
   private async handleDeployRunRequest(
     context: TelegramBotContext,
     actorUserId: string,
@@ -1434,25 +1509,44 @@ export class TelegramUpdate {
       return;
     }
 
+    await this.sendBackupArtifact(
+      context,
+      backupResult,
+      '💾 Backup',
+      '⚠️ Backup đã tạo thành công nhưng TeleOps chưa gửi được file vào Telegram.',
+    );
+  }
+
+  private async sendBackupArtifact(
+    context: TelegramBotContext,
+    backupArtifact: {
+      filename: string;
+      storagePath: string;
+    },
+    captionPrefix: string,
+    failureMessage: string,
+  ): Promise<boolean> {
     try {
       await context.replyWithDocument(
-        Input.fromLocalFile(backupResult.storagePath, backupResult.filename),
+        Input.fromLocalFile(
+          backupArtifact.storagePath,
+          backupArtifact.filename,
+        ),
         {
-          caption: `💾 Backup: <code>${escapeHtml(backupResult.filename)}</code>`,
+          caption: `${captionPrefix}: <code>${escapeHtml(backupArtifact.filename)}</code>`,
           parse_mode: 'HTML',
         },
       );
+      return true;
     } catch (error) {
       this.logger.warn(
-        { err: error, backupFilename: backupResult.filename },
+        { err: error, backupFilename: backupArtifact.filename },
         'Backup artifact delivery to Telegram failed.',
       );
-      await context.reply(
-        '⚠️ Backup đã tạo thành công nhưng TeleOps chưa gửi được file vào Telegram.',
-        {
-          parse_mode: 'HTML',
-        },
-      );
+      await context.reply(failureMessage, {
+        parse_mode: 'HTML',
+      });
+      return false;
     }
   }
 }

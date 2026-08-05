@@ -75,6 +75,7 @@ describe('TelegramUpdate', () => {
     getDatabaseStatus: jest.Mock;
     getBackupOverview: jest.Mock;
     createBackup: jest.Mock;
+    getLatestSuccessfulBackupArtifactForTelegram: jest.Mock;
     getTelegramDeliveryDecision: jest.Mock;
   };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
@@ -125,6 +126,7 @@ describe('TelegramUpdate', () => {
       getDatabaseStatus: jest.fn(),
       getBackupOverview: jest.fn(),
       createBackup: jest.fn(),
+      getLatestSuccessfulBackupArtifactForTelegram: jest.fn(),
       getTelegramDeliveryDecision: jest.fn().mockReturnValue({
         eligible: false,
         maxTelegramSizeMb: 20,
@@ -389,6 +391,43 @@ describe('TelegramUpdate', () => {
         parse_mode: 'HTML',
       }),
     );
+  });
+
+  it('sends the latest successful backup artifact on request', async () => {
+    const { context, answerCbQueryMock, replyWithDocumentMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    backupService.getLatestSuccessfulBackupArtifactForTelegram.mockResolvedValue(
+      {
+        filename: 'teleops-latest.sql',
+        storagePath: '/data/backups/teleops-latest.sql',
+        checksumSha256: 'a'.repeat(64),
+        sizeBytes: BigInt(1024),
+      },
+    );
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:backup:download-latest',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Đang gửi backup gần nhất...',
+    );
+    expect(
+      backupService.getLatestSuccessfulBackupArtifactForTelegram,
+    ).toHaveBeenCalled();
+    expect(replyWithDocumentMock).toHaveBeenCalled();
   });
 
   it('creates a confirmation flow for deploy execution requests', async () => {
