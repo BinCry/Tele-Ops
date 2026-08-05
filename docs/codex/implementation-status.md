@@ -22,13 +22,10 @@ Updated: 2026-08-05
 - Deployment execution now blocks overlapping `RUNNING` targets and validates optional post-deploy health checks before success is recorded.
 - Backup execution now attempts direct Telegram artifact delivery when the file stays within the configured Telegram size limit.
 - Alert rules now load from YAML, create/resolve `AlertEvent` records, suppress repeat notifications inside cooldown windows, and surface active alerts in the monitoring screen.
+- Alert evaluation now also runs in the background on startup and on the configured monitoring interval, independent of manual Telegram refreshes.
 - Prisma schema, seed flow, migration SQL, Compose files, Dockerfile, CI workflow, Telegram shell, access control, server visibility, and Docker read-only visibility are present.
 
 ## Next Checkpoint
 
-- Commit and push the Telegram deploy execution slice.
-- Commit and push the monitoring overview slice.
-- Commit and push the deploy hardening slice.
-- Commit and push the backup delivery slice.
-- Commit and push the alerts lifecycle slice.
-- Continue with deployment rollback, background alert scheduling, richer backup constraints, and remaining production-readiness gaps.
+- Commit and push the background alert evaluation slice.
+- Continue with deployment rollback, richer backup constraints, user/settings management, and remaining production-readiness gaps.

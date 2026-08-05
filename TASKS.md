@@ -36,7 +36,7 @@ Updated: 2026-08-05
 - [ ] M5 Docker management.
 - [ ] M6 Deployment workflow.
 - [ ] M7 Database status and backup.
-- [ ] M8 Monitoring and alerts.
+- [x] M8 Monitoring and alerts.
 - [ ] M9 Users and settings.
 - [ ] M10 Audit UI and hardening.
 - [ ] M11 Documentation and deployment guides.
@@ -57,7 +57,7 @@ Updated: 2026-08-05
 - [x] Added deployment soft-locking against active `RUNNING` targets and post-deploy health validation through configured monitoring targets.
 - [x] Added Telegram backup artifact delivery for eligible backup sizes with configured size-limit fallback messaging.
 - [x] Added alert rule config loading, `AlertEvent` open/resolve lifecycle, cooldown-aware notification suppression, and monitoring-integrated alert summaries.
+- [x] Added background alert evaluation scheduling so monitoring samples and alert lifecycle keep running without a manual Telegram refresh.
 - [ ] Finish backup artifact delivery and download constraints.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
 - [ ] Add deployment rollback flow.
-- [ ] Add background alert evaluation scheduling independent of manual Telegram refresh.

@@ -15,8 +15,8 @@ TeleOps is a Telegram-based operations bot for managing services running on a VP
 ## Current Status
 
 - Milestones 0 through 4 are complete and pushed.
-- Current capabilities: Telegram auth/RBAC, audit trail, rate limiting, dashboard/server visibility, Docker visibility plus confirmed mutations, PostgreSQL status/backup execution with direct Telegram artifact delivery when size permits, deploy target execution with active-run guard and post-deploy health validation, live monitoring overview from health targets, and alert rule evaluation with persisted alert lifecycle.
-- Current gaps before deploy-ready: deployment rollback, background alert scheduling, richer user/settings management, richer backup constraints, and full operations documentation.
+- Current capabilities: Telegram auth/RBAC, audit trail, rate limiting, dashboard/server visibility, Docker visibility plus confirmed mutations, PostgreSQL status/backup execution with direct Telegram artifact delivery when size permits, deploy target execution with active-run guard and post-deploy health validation, live monitoring overview from health targets, and alert rule evaluation with persisted lifecycle plus background polling and optional Telegram notifications.
+- Current gaps before deploy-ready: deployment rollback, richer user/settings management, richer backup constraints, and full operations documentation.
 
 ## Tech Stack
 
@@ -56,6 +56,7 @@ pnpm build
 - Copy `.env.example` to `.env`.
 - Fill in Telegram, database, Redis, and deployment-related environment values.
 - Baseline config examples live in `config/*.example.yaml`.
+- `MONITOR_SAMPLE_INTERVAL_SECONDS` controls the shared monitoring and alert polling cadence.
 - Start local infrastructure with `docker compose up -d postgres redis`.
 - Apply the initial schema with `pnpm prisma:migrate:dev --name init`.
 
