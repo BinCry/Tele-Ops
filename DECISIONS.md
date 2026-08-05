@@ -35,3 +35,4 @@ Updated: 2026-08-05
 19. Background alert evaluation now runs inside `AlertsModule` on startup and on the shared monitoring interval, while skipping the test environment to keep automated test runs deterministic.
 20. Deployment rollback reuses the latest reversible `DeploymentRun` history, restoring the previous commit through the same confirmation, locking, and post-action health-check pipeline as forward deploys.
 21. Backup artifact re-delivery is limited to the latest successful persisted backup and re-validates local file existence plus Telegram size limits before sending any file back to chat.
+22. First-pass user management prefers safe status transitions over free-form edits: unknown Telegram users self-register as `PENDING`, while admins and owners can only activate or disable managed accounts through confirmation tokens.

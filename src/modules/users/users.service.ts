@@ -18,6 +18,33 @@ export type UserSummary = Pick<
 export class UsersService {
   constructor(private readonly prismaService: PrismaService) {}
 
+  async createPendingTelegramUser(profile: TelegramProfile): Promise<User> {
+    return this.prismaService.user.upsert({
+      where: {
+        telegramUserId: String(profile.id),
+      },
+      update: {
+        username: profile.username ?? null,
+        firstName: profile.firstName ?? null,
+        lastName: profile.lastName ?? null,
+        displayName: this.buildDisplayName(profile),
+        role: UserRole.VIEWER,
+        status: UserStatus.PENDING,
+        lastSeenAt: new Date(),
+      },
+      create: {
+        telegramUserId: String(profile.id),
+        username: profile.username ?? null,
+        firstName: profile.firstName ?? null,
+        lastName: profile.lastName ?? null,
+        displayName: this.buildDisplayName(profile),
+        role: UserRole.VIEWER,
+        status: UserStatus.PENDING,
+        lastSeenAt: new Date(),
+      },
+    });
+  }
+
   async findByTelegramUserId(telegramUserId: string): Promise<User | null> {
     return this.prismaService.user.findUnique({
       where: {
@@ -100,6 +127,35 @@ export class UsersService {
         role: true,
         status: true,
         lastSeenAt: true,
+      },
+    });
+  }
+
+  async updateUserStatus(userId: string, status: UserStatus): Promise<User> {
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
+
+    if (!user) {
+      throw new Error(`User "${userId}" was not found.`);
+    }
+
+    if (user.role === UserRole.OWNER && status !== UserStatus.ACTIVE) {
+      throw new Error('Owner user cannot be disabled.');
+    }
+
+    if (user.status === status) {
+      return user;
+    }
+
+    return this.prismaService.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        status,
       },
     });
   }

@@ -1,5 +1,5 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
 import { UserRole, UserStatus } from '@prisma/client';
 import { UsersService } from 'src/modules/users/users.service';
 import { AuthService } from './auth.service';
@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 describe('AuthService', () => {
   let service: AuthService;
   let usersService: {
+    createPendingTelegramUser: jest.Mock;
     ensureOwnerUser: jest.Mock;
     findByTelegramUserId: jest.Mock;
     touchTelegramProfile: jest.Mock;
@@ -18,6 +19,7 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     usersService = {
+      createPendingTelegramUser: jest.fn(),
       ensureOwnerUser: jest.fn(),
       findByTelegramUserId: jest.fn(),
       touchTelegramProfile: jest.fn(),
@@ -63,8 +65,15 @@ describe('AuthService', () => {
     expect(result.status).toBe('authorized');
   });
 
-  it('returns unknown-user denial when no record exists', async () => {
+  it('creates a pending request when no user record exists yet', async () => {
     usersService.findByTelegramUserId.mockResolvedValue(null);
+    usersService.createPendingTelegramUser.mockResolvedValue({
+      id: 'user-pending-1',
+      telegramUserId: '999',
+      displayName: 'Guest',
+      role: UserRole.VIEWER,
+      status: UserStatus.PENDING,
+    });
 
     const result = await service.authorizeTelegramContext({
       from: {
@@ -76,9 +85,9 @@ describe('AuthService', () => {
     expect(result).toEqual({
       status: 'unauthorized',
       telegramUserId: '999',
-      reason: 'unknown_user',
-      message:
-        'Tài khoản Telegram này hiện chưa được cấp quyền truy cập TeleOps.',
+      reason: 'pending',
+      message: 'Tài khoản của bạn đang chờ được phê duyệt.',
     });
+    expect(usersService.createPendingTelegramUser).toHaveBeenCalled();
   });
 });

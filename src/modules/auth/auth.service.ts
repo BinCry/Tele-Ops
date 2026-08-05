@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserStatus } from '@prisma/client';
-import { TelegramBotContext } from 'src/telegram/context/telegram-context';
 import { UsersService } from 'src/modules/users/users.service';
+import { TelegramBotContext } from 'src/telegram/context/telegram-context';
 import { TelegramAuthorizationResult } from './auth.types';
 
 @Injectable()
@@ -42,16 +42,19 @@ export class AuthService {
         : await this.usersService.findByTelegramUserId(telegramUserId);
 
     if (!user) {
+      await this.usersService.createPendingTelegramUser(profile);
+
       return {
         status: 'unauthorized',
         telegramUserId,
-        reason: 'unknown_user',
-        message:
-          'Tài khoản Telegram này hiện chưa được cấp quyền truy cập TeleOps.',
+        reason: 'pending',
+        message: 'Tài khoản của bạn đang chờ được phê duyệt.',
       };
     }
 
     if (user.status === UserStatus.DISABLED) {
+      await this.usersService.touchTelegramProfile(user.id, profile);
+
       return {
         status: 'unauthorized',
         telegramUserId,
@@ -61,6 +64,8 @@ export class AuthService {
     }
 
     if (user.status === UserStatus.PENDING) {
+      await this.usersService.touchTelegramProfile(user.id, profile);
+
       return {
         status: 'unauthorized',
         telegramUserId,

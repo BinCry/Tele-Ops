@@ -35,3 +35,4 @@
 - Added a background alert evaluation runner that reuses the monitoring cadence, skips the test environment, and keeps alert state moving without manual Telegram interaction.
 - Added Telegram-triggered deployment rollback that reuses persisted deployment history, enforces active-run locking, and validates health again after the restored release is applied.
 - Added constrained resend of the latest successful backup artifact through Telegram, with file-exists and size-limit checks before delivery.
+- Added pending-user onboarding and Telegram confirmation flows for activating or disabling managed users.

@@ -60,4 +60,5 @@ Updated: 2026-08-05
 - [x] Added background alert evaluation scheduling so monitoring samples and alert lifecycle keep running without a manual Telegram refresh.
 - [x] Added confirmed deployment rollback from Telegram using persisted deployment history, commit checkout, and post-rollback health validation.
 - [x] Finished backup artifact delivery and constrained resend of the latest successful backup artifact through Telegram.
+- [x] Added pending-user onboarding plus Telegram approval/disable management for access control.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.

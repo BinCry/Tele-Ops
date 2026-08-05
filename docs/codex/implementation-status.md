@@ -12,6 +12,7 @@ Updated: 2026-08-05
 - Milestone 5 Docker visibility groundwork is implemented locally and verified.
 - Database and backup visibility groundwork is implemented locally and verified.
 - Users, settings, and audit read-only Telegram screens are implemented locally and verified.
+- Unknown Telegram users now self-register as `PENDING`, and admins or owners can activate or disable those accounts from the Telegram `Users` screen with confirmation tokens.
 - Docker start/stop/restart confirmation groundwork with persisted action tokens is implemented locally and verified.
 - Backup execution foundation with persistent records, checksuming, and retention cleanup is implemented locally and verified.
 - Telegram-triggered backup execution with confirmation flow is implemented locally and verified.
@@ -30,4 +31,4 @@ Updated: 2026-08-05
 ## Next Checkpoint
 
 - Commit and push the backup download-constraints slice.
-- Continue with user/settings management and remaining production-readiness gaps.
+- Continue with richer settings management and remaining production-readiness gaps.

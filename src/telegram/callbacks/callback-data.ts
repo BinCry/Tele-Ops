@@ -22,7 +22,13 @@ export type DockerActionCallbackPayload = {
   containerShortId: string;
 };
 
+export type UserStatusActionCallbackPayload = {
+  action: 'activate' | 'disable';
+  targetTelegramUserId: string;
+};
+
 const DOCKER_ACTION_PREFIX = 'action:docker';
+const USER_STATUS_ACTION_PREFIX = 'action:user';
 const DEPLOY_RUN_PREFIX = 'action:deploy:run';
 const DEPLOY_ROLLBACK_PREFIX = 'action:deploy:rollback';
 const BACKUP_CREATE_CALLBACK = 'action:backup:create';
@@ -51,6 +57,28 @@ export function parseDockerActionCallback(
   return {
     action: match[1] as DockerActionCallbackPayload['action'],
     containerShortId: match[2] ?? '',
+  };
+}
+
+export function buildUserStatusActionCallback(
+  action: UserStatusActionCallbackPayload['action'],
+  targetTelegramUserId: string,
+): string {
+  return `${USER_STATUS_ACTION_PREFIX}:${action}:${targetTelegramUserId}`;
+}
+
+export function parseUserStatusActionCallback(
+  value: string,
+): UserStatusActionCallbackPayload | null {
+  const match = value.match(/^action:user:(activate|disable):([0-9]{1,20})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    action: match[1] as UserStatusActionCallbackPayload['action'],
+    targetTelegramUserId: match[2] ?? '',
   };
 }
 

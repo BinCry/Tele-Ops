@@ -1,4 +1,4 @@
-import { AuditResult, UserRole } from '@prisma/client';
+import { AuditResult, UserRole, UserStatus } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { Input } from 'telegraf';
@@ -35,6 +35,7 @@ import {
   buildDeployRollbackCallback,
   buildDeployRunCallback,
   buildDockerActionCallback,
+  buildUserStatusActionCallback,
   isBackupDownloadLatestCallback,
   isBackupCreateCallback,
   parseActionCancelCallback,
@@ -42,6 +43,7 @@ import {
   parseDeployRollbackCallback,
   parseDeployRunCallback,
   parseDockerActionCallback,
+  parseUserStatusActionCallback,
   TELEGRAM_CALLBACKS,
   TelegramCallback,
 } from './callbacks/callback-data';
@@ -176,6 +178,7 @@ export class TelegramUpdate {
     }
 
     const dockerActionPayload = parseDockerActionCallback(callbackData);
+    const userStatusActionPayload = parseUserStatusActionCallback(callbackData);
     const backupCreateRequested = isBackupCreateCallback(callbackData);
     const backupDownloadLatestRequested =
       isBackupDownloadLatestCallback(callbackData);
@@ -190,6 +193,7 @@ export class TelegramUpdate {
     if (
       !navigationCallback &&
       !dockerActionPayload &&
+      !userStatusActionPayload &&
       !backupCreateRequested &&
       !backupDownloadLatestRequested &&
       !deployRunTargetName &&
@@ -288,6 +292,17 @@ export class TelegramUpdate {
         context,
         authorizationResult.user.id,
         authorizationResult.user.role,
+      );
+      return;
+    }
+
+    if (userStatusActionPayload) {
+      await this.handleUserStatusRequest(
+        context,
+        authorizationResult.user.id,
+        authorizationResult.user.role,
+        userStatusActionPayload.action,
+        userStatusActionPayload.targetTelegramUserId,
       );
       return;
     }
@@ -767,6 +782,10 @@ export class TelegramUpdate {
 
     if (navigationCallback === TELEGRAM_CALLBACKS.users) {
       const users = await this.usersService.listUserSummaries();
+      const canManageUsers = this.rbacService.hasPermission(
+        authorizationResult.user.role,
+        PERMISSIONS.usersManage,
+      );
 
       await context.answerCbQuery('Đang tải danh sách người dùng...');
       await this.auditService.record({
@@ -788,8 +807,41 @@ export class TelegramUpdate {
               )
             : ['Chưa có người dùng nào trong hệ thống.']),
         ].join('\n'),
-        keyboard:
-          this.navigationService.buildFeaturePlaceholder('Users').keyboard,
+        keyboard: buildKeyboard(
+          canManageUsers
+            ? users.flatMap((user) => {
+                if (user.role === UserRole.OWNER) {
+                  return [];
+                }
+
+                if (user.status === UserStatus.ACTIVE) {
+                  return [
+                    {
+                      text: `⛔ ${user.displayName}`,
+                      callback_data: buildUserStatusActionCallback(
+                        'disable',
+                        user.telegramUserId,
+                      ),
+                    },
+                  ];
+                }
+
+                return [
+                  {
+                    text: `✅ ${user.displayName}`,
+                    callback_data: buildUserStatusActionCallback(
+                      'activate',
+                      user.telegramUserId,
+                    ),
+                  },
+                ];
+              })
+            : [],
+          [
+            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+          ],
+        ),
       });
       return;
     }
@@ -1068,6 +1120,104 @@ export class TelegramUpdate {
     });
   }
 
+  private async handleUserStatusRequest(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+    action: 'activate' | 'disable',
+    targetTelegramUserId: string,
+  ): Promise<void> {
+    if (!this.rbacService.hasPermission(role, PERMISSIONS.usersManage)) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const targetUser =
+      await this.usersService.findByTelegramUserId(targetTelegramUserId);
+
+    if (!targetUser) {
+      await context.answerCbQuery('Không tìm thấy người dùng cần cập nhật.', {
+        show_alert: true,
+      });
+      return;
+    }
+
+    if (targetUser.role === UserRole.OWNER && action === 'disable') {
+      await context.answerCbQuery('Không thể vô hiệu hóa owner.', {
+        show_alert: true,
+      });
+      return;
+    }
+
+    const targetStatus =
+      action === 'activate' ? UserStatus.ACTIVE : UserStatus.DISABLED;
+
+    if (targetUser.status === targetStatus) {
+      await context.answerCbQuery('Người dùng đã ở trạng thái mong muốn.', {
+        show_alert: true,
+      });
+      return;
+    }
+
+    const actionRequest = await this.actionRequestService.createPendingRequest({
+      actorUserId,
+      actionType: action === 'activate' ? 'user.activate' : 'user.disable',
+      resourceType: 'user',
+      resourceId: targetUser.id,
+      payloadJson: {
+        displayName: targetUser.displayName,
+        telegramUserId: targetUser.telegramUserId,
+        currentStatus: targetUser.status,
+        targetStatus,
+      },
+    });
+
+    await this.auditService.record({
+      actorUserId,
+      action: 'telegram.users.request',
+      resourceType: 'user',
+      resourceId: targetUser.id,
+      payloadJson: {
+        currentStatus: targetUser.status,
+        targetStatus,
+        token: actionRequest.token,
+      },
+      result: AuditResult.STARTED,
+    });
+    await context.answerCbQuery('Cần xác nhận cập nhật người dùng.');
+    await this.menuRenderer.renderScreen(context, {
+      text: [
+        '⚠️ <b>Xác nhận cập nhật người dùng</b>',
+        '',
+        `Người dùng: <b>${escapeHtml(targetUser.displayName)}</b>`,
+        `Telegram ID: <code>${escapeHtml(targetUser.telegramUserId)}</code>`,
+        `Trạng thái hiện tại: <b>${targetUser.status}</b>`,
+        `Trạng thái mới: <b>${targetStatus}</b>`,
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [
+            {
+              text: '✅ Xác nhận',
+              callback_data: buildActionConfirmCallback(actionRequest.token),
+            },
+            {
+              text: '❌ Hủy',
+              callback_data: buildActionCancelCallback(actionRequest.token),
+            },
+          ],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    });
+  }
+
   private async handleDeployRunRequest(
     context: TelegramBotContext,
     actorUserId: string,
@@ -1330,6 +1480,36 @@ export class TelegramUpdate {
           context,
           backupResult,
           deliveryDecision,
+        );
+        return;
+      }
+
+      const targetUserStatus = parseUserTargetStatus(
+        resolution.request.actionType,
+      );
+
+      if (targetUserStatus && resolution.request.resourceId) {
+        const updatedUser = await this.usersService.updateUserStatus(
+          resolution.request.resourceId,
+          targetUserStatus,
+        );
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId,
+          action: 'telegram.users.execute',
+          resourceType: 'user',
+          resourceId: updatedUser.id,
+          payloadJson: {
+            telegramUserId: updatedUser.telegramUserId,
+            status: updatedUser.status,
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã cập nhật trạng thái người dùng.');
+        await this.menuRenderer.renderScreen(
+          context,
+          buildUserStatusSuccessScreen(updatedUser),
         );
         return;
       }
@@ -1666,6 +1846,34 @@ function buildRollbackSuccessScreen(rollbackResult: DeploymentRollbackResult): {
   };
 }
 
+function buildUserStatusSuccessScreen(user: {
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  telegramUserId: string;
+}): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  return {
+    text: [
+      '✅ <b>Cập nhật người dùng thành công</b>',
+      '',
+      `Người dùng: <b>${escapeHtml(user.displayName)}</b>`,
+      `Telegram ID: <code>${escapeHtml(user.telegramUserId)}</code>`,
+      `Role: <b>${user.role}</b>`,
+      `Trạng thái mới: <b>${user.status}</b>`,
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: '👥 Users', callback_data: TELEGRAM_CALLBACKS.users }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
+}
+
 function buildCancelledScreen(actionType: string): {
   text: string;
   keyboard: ReturnType<typeof buildKeyboard>;
@@ -1681,6 +1889,23 @@ function buildCancelledScreen(actionType: string): {
         [],
         [
           [{ text: '🚀 Deploy', callback_data: TELEGRAM_CALLBACKS.deploy }],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    };
+  }
+
+  if (actionType.startsWith('user.')) {
+    return {
+      text: [
+        '❌ <b>Đã hủy thao tác</b>',
+        '',
+        'Không có thay đổi nào được áp dụng.',
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [{ text: '👥 Users', callback_data: TELEGRAM_CALLBACKS.users }],
           [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
         ],
       ),
@@ -1799,6 +2024,10 @@ function getPermissionForActionType(actionType: string): Permission | null {
     return PERMISSIONS.backupRun;
   }
 
+  if (actionType.startsWith('user.')) {
+    return PERMISSIONS.usersManage;
+  }
+
   if (actionType === 'deploy.run' || actionType === 'deploy.rollback') {
     return PERMISSIONS.deployRun;
   }
@@ -1830,4 +2059,16 @@ function getDockerActionEmoji(action: 'start' | 'stop' | 'restart'): string {
     case 'restart':
       return '🔄';
   }
+}
+
+function parseUserTargetStatus(actionType: string): UserStatus | null {
+  if (actionType === 'user.activate') {
+    return UserStatus.ACTIVE;
+  }
+
+  if (actionType === 'user.disable') {
+    return UserStatus.DISABLED;
+  }
+
+  return null;
 }

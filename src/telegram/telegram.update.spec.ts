@@ -98,7 +98,11 @@ describe('TelegramUpdate', () => {
   };
   let monitoringService: { getOverview: jest.Mock };
   let serverService: { getServerSnapshot: jest.Mock };
-  let usersService: { listUserSummaries: jest.Mock };
+  let usersService: {
+    findByTelegramUserId: jest.Mock;
+    listUserSummaries: jest.Mock;
+    updateUserStatus: jest.Mock;
+  };
   let settingsService: { getSettingsSnapshot: jest.Mock };
 
   beforeEach(() => {
@@ -159,7 +163,9 @@ describe('TelegramUpdate', () => {
       getServerSnapshot: jest.fn(),
     };
     usersService = {
+      findByTelegramUserId: jest.fn(),
       listUserSummaries: jest.fn(),
+      updateUserStatus: jest.fn(),
     };
     settingsService = {
       getSettingsSnapshot: jest.fn(),
@@ -687,6 +693,107 @@ describe('TelegramUpdate', () => {
     );
   });
 
+  it('renders the users screen with management actions for non-owner accounts', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    usersService.listUserSummaries.mockResolvedValue([
+      {
+        displayName: 'Owner User',
+        telegramUserId: '123456789',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+        lastSeenAt: new Date('2026-08-05T08:00:00.000Z'),
+      },
+      {
+        displayName: 'Guest User',
+        telegramUserId: '999',
+        role: UserRole.VIEWER,
+        status: UserStatus.PENDING,
+        lastSeenAt: null,
+      },
+    ]);
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.users);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Đang tải danh sách người dùng...',
+    );
+    const firstCall = editMessageTextMock.mock.calls.at(0) as
+      | [
+          string,
+          {
+            parse_mode: string;
+            reply_markup: {
+              inline_keyboard: Array<Array<{ callback_data?: string }>>;
+            };
+          },
+        ]
+      | undefined;
+
+    expect(firstCall?.[0]).toContain('Guest User');
+    expect(firstCall?.[1].reply_markup.inline_keyboard.flat()).toContainEqual(
+      expect.objectContaining({
+        callback_data: 'action:user:activate:999',
+      }),
+    );
+  });
+
+  it('creates a confirmation flow for user activation requests', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    usersService.findByTelegramUserId.mockResolvedValue({
+      id: 'user-pending-1',
+      telegramUserId: '999',
+      displayName: 'Guest User',
+      role: UserRole.VIEWER,
+      status: UserStatus.PENDING,
+    });
+    actionRequestService.createPendingRequest.mockResolvedValue({
+      id: 'user-request-1',
+      token: '6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    });
+
+    await telegramUpdate.handleCallback(context, 'action:user:activate:999');
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      expect.stringContaining('người dùng'),
+    );
+    expect(actionRequestService.createPendingRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: 'user.activate',
+        resourceId: 'user-pending-1',
+      }),
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('999'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
   it('executes backup creation after confirmation', async () => {
     const {
       context,
@@ -785,6 +892,57 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('TeleOps Production'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('executes user activation after confirmation', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.resolveForActor.mockResolvedValue({
+      status: 'ready',
+      request: {
+        id: 'user-request-1',
+        actionType: 'user.activate',
+        resourceType: 'user',
+        resourceId: 'user-pending-1',
+      },
+    });
+    usersService.updateUserStatus.mockResolvedValue({
+      id: 'user-pending-1',
+      telegramUserId: '999',
+      displayName: 'Guest User',
+      role: UserRole.VIEWER,
+      status: UserStatus.ACTIVE,
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:confirm:6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      expect.stringContaining('người dùng'),
+    );
+    expect(usersService.updateUserStatus).toHaveBeenCalledWith(
+      'user-pending-1',
+      UserStatus.ACTIVE,
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('Guest User'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),
