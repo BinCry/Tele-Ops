@@ -28,3 +28,4 @@
 - Added `DeployTargetsService` with YAML parsing/validation and a live Telegram `Deploy` overview screen for configured targets.
 - Added `DeploymentService` and `SafeProcessRunner` foundation for validated git/docker compose deployment execution with persisted run records.
 - Added Telegram-triggered deployment confirmation and execution flow for configured targets with audited success screens.
+- Added monitoring target config loading, HTTP health probes, persisted monitoring samples, and a live Telegram `Monitoring` screen.

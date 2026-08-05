@@ -9,6 +9,7 @@ import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import { DeploymentService } from 'src/modules/deploy/deployment.service';
 import { DeployTargetsService } from 'src/modules/deploy/deploy-targets.service';
 import { DockerService } from 'src/modules/docker/docker.service';
+import { MonitoringService } from 'src/modules/monitoring/monitoring.service';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
 import { SettingsService } from 'src/modules/settings/settings.service';
@@ -83,6 +84,7 @@ describe('TelegramUpdate', () => {
     findActionTarget: jest.Mock;
     executeAction: jest.Mock;
   };
+  let monitoringService: { getOverview: jest.Mock };
   let serverService: { getServerSnapshot: jest.Mock };
   let usersService: { listUserSummaries: jest.Mock };
   let settingsService: { getSettingsSnapshot: jest.Mock };
@@ -128,6 +130,9 @@ describe('TelegramUpdate', () => {
       findActionTarget: jest.fn(),
       executeAction: jest.fn(),
     };
+    monitoringService = {
+      getOverview: jest.fn(),
+    };
     serverService = {
       getServerSnapshot: jest.fn(),
     };
@@ -149,6 +154,7 @@ describe('TelegramUpdate', () => {
       deploymentService as unknown as DeploymentService,
       deployTargetsService as unknown as DeployTargetsService,
       dockerService as unknown as DockerService,
+      monitoringService as unknown as MonitoringService,
       serverService as unknown as ServerService,
       usersService as unknown as UsersService,
       settingsService as unknown as SettingsService,
@@ -477,6 +483,57 @@ describe('TelegramUpdate', () => {
     expect(firstCall?.[1].reply_markup.inline_keyboard.flat()).toContainEqual(
       expect.objectContaining({
         callback_data: 'action:deploy:run:teleops-prod',
+      }),
+    );
+  });
+
+  it('renders the monitoring overview screen for authorized users', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    monitoringService.getOverview.mockResolvedValue({
+      configPath: '/app/config/health-targets.yaml',
+      fileExists: true,
+      enabledTargetCount: 1,
+      disabledTargetCount: 0,
+      healthyCount: 1,
+      degradedCount: 0,
+      downCount: 0,
+      targets: [
+        {
+          name: 'teleops-http',
+          displayName: 'TeleOps HTTP',
+          url: 'https://teleops.example.com/health',
+          method: 'GET',
+          expectedStatus: 200,
+          timeoutMs: 4000,
+          enabled: true,
+          status: 'HEALTHY',
+          responseTimeMs: 120,
+          statusCode: 200,
+          errorMessage: null,
+          checkedAt: new Date('2026-08-05T08:00:00.000Z'),
+        },
+      ],
+    });
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.monitoring);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith('Đang tải monitoring...');
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('TeleOps HTTP'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
       }),
     );
   });

@@ -16,6 +16,7 @@ import {
 } from 'src/modules/deploy/deployment.service';
 import { DeployTargetsService } from 'src/modules/deploy/deploy-targets.service';
 import { DockerService } from 'src/modules/docker/docker.service';
+import { MonitoringService } from 'src/modules/monitoring/monitoring.service';
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
@@ -83,6 +84,7 @@ export class TelegramUpdate {
     private readonly deploymentService: DeploymentService,
     private readonly deployTargetsService: DeployTargetsService,
     private readonly dockerService: DockerService,
+    private readonly monitoringService: MonitoringService,
     private readonly serverService: ServerService,
     private readonly usersService: UsersService,
     private readonly settingsService: SettingsService,
@@ -492,6 +494,59 @@ export class TelegramUpdate {
                 },
               ]
             : [],
+          [
+            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+          ],
+        ),
+      });
+      return;
+    }
+
+    if (navigationCallback === TELEGRAM_CALLBACKS.monitoring) {
+      const monitoringSnapshot = await this.monitoringService.getOverview();
+
+      await context.answerCbQuery('Đang tải monitoring...');
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.monitoring',
+        resourceType: 'telegram_callback',
+        resourceId: navigationCallback,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.SUCCESS,
+      });
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '📈 <b>Monitoring</b>',
+          '',
+          `File cấu hình: <code>${escapeHtml(monitoringSnapshot.configPath)}</code>`,
+          `Trạng thái file: <b>${monitoringSnapshot.fileExists ? '🟢 Tìm thấy' : '🔴 Chưa có file'}</b>`,
+          `Targets bật: <b>${monitoringSnapshot.enabledTargetCount}</b>`,
+          `Targets tắt: <b>${monitoringSnapshot.disabledTargetCount}</b>`,
+          `Healthy: <b>${monitoringSnapshot.healthyCount}</b>`,
+          `Degraded: <b>${monitoringSnapshot.degradedCount}</b>`,
+          `Down: <b>${monitoringSnapshot.downCount}</b>`,
+          '',
+          ...(monitoringSnapshot.targets.length > 0
+            ? monitoringSnapshot.targets.map((target, index) =>
+                [
+                  `${index + 1}. <b>${escapeHtml(target.displayName)}</b> | ${formatMonitoringStatus(target.status)}`,
+                  `${escapeHtml(target.method)} ${escapeHtml(target.url)}`,
+                  target.responseTimeMs !== null
+                    ? `${target.responseTimeMs}ms`
+                    : 'chưa probe',
+                  target.statusCode !== null
+                    ? `HTTP ${target.statusCode}`
+                    : null,
+                  target.errorMessage ? escapeHtml(target.errorMessage) : null,
+                ]
+                  .filter((value) => value !== null)
+                  .join(' | '),
+              )
+            : ['Chưa có health target nào được cấu hình.']),
+        ].join('\n'),
+        keyboard: buildKeyboard(
+          [],
           [
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
             [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
@@ -1403,6 +1458,21 @@ function getPermissionForActionType(actionType: string): Permission | null {
   }
 
   return null;
+}
+
+function formatMonitoringStatus(
+  status: 'DISABLED' | 'HEALTHY' | 'DEGRADED' | 'DOWN',
+): string {
+  switch (status) {
+    case 'HEALTHY':
+      return '🟢 healthy';
+    case 'DEGRADED':
+      return '🟡 degraded';
+    case 'DOWN':
+      return '🔴 down';
+    case 'DISABLED':
+      return '⚪ disabled';
+  }
 }
 
 function getDockerActionEmoji(action: 'start' | 'stop' | 'restart'): string {

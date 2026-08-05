@@ -7,6 +7,7 @@ import { BackupModule } from 'src/modules/backup/backup.module';
 import { DashboardModule } from 'src/modules/dashboard/dashboard.module';
 import { DeployModule } from 'src/modules/deploy/deploy.module';
 import { DockerModule } from 'src/modules/docker/docker.module';
+import { MonitoringModule } from 'src/modules/monitoring/monitoring.module';
 import { RbacModule } from 'src/modules/rbac/rbac.module';
 import { ServerModule } from 'src/modules/server/server.module';
 import { SettingsModule } from 'src/modules/settings/settings.module';
@@ -27,6 +28,7 @@ import { TelegramUpdate } from './telegram.update';
     DashboardModule,
     DeployModule,
     DockerModule,
+    MonitoringModule,
     UsersModule,
     SettingsModule,
   ],

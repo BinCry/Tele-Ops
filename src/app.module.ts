@@ -12,6 +12,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DeployModule } from './modules/deploy/deploy.module';
 import { DockerModule } from './modules/docker/docker.module';
 import { HealthModule } from './modules/health/health.module';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { ServerModule } from './modules/server/server.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -65,6 +66,7 @@ const loggerConfig: Params = {
     DeployModule,
     DockerModule,
     HealthModule,
+    MonitoringModule,
     SettingsModule,
     TelegramModule,
   ],
