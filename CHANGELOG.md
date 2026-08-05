@@ -24,3 +24,4 @@
 - Added persisted `ActionRequest` confirmation flow for Docker start/stop/restart actions with token-based confirm/cancel handling.
 - Added backend-only `docker.manage` permission and allowlist-aware Docker action buttons in the Telegram Docker screen.
 - Added `PostgresBackupGateway` plus backup execution orchestration with persistent records, SHA-256 checksum generation, and retention cleanup.
+- Added Telegram backup creation confirmation flow and post-run success rendering on the `Backup` screen.

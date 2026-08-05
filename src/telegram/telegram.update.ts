@@ -1,11 +1,14 @@
-import { AuditResult } from '@prisma/client';
+import { AuditResult, UserRole } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
 import { ActionRequestService } from 'src/modules/action-request/action-request.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
-import { BackupService } from 'src/modules/backup/backup.service';
+import {
+  BackupExecutionResult,
+  BackupService,
+} from 'src/modules/backup/backup.service';
 import { DashboardService } from 'src/modules/dashboard/dashboard.service';
 import { DockerService } from 'src/modules/docker/docker.service';
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
@@ -16,7 +19,9 @@ import { UsersService } from 'src/modules/users/users.service';
 import {
   buildActionCancelCallback,
   buildActionConfirmCallback,
+  buildBackupCreateCallback,
   buildDockerActionCallback,
+  isBackupCreateCallback,
   parseActionCancelCallback,
   parseActionConfirmCallback,
   parseDockerActionCallback,
@@ -150,15 +155,20 @@ export class TelegramUpdate {
     }
 
     const dockerActionPayload = parseDockerActionCallback(callbackData);
+    const backupCreateRequested = isBackupCreateCallback(callbackData);
     const confirmToken = parseActionConfirmCallback(callbackData);
     const cancelToken = parseActionCancelCallback(callbackData);
-    const isKnownCallback =
-      this.isNavigationCallback(callbackData) ||
-      dockerActionPayload !== null ||
-      confirmToken !== null ||
-      cancelToken !== null;
+    const navigationCallback = this.isNavigationCallback(callbackData)
+      ? callbackData
+      : null;
 
-    if (!isKnownCallback) {
+    if (
+      !navigationCallback &&
+      !dockerActionPayload &&
+      !backupCreateRequested &&
+      !confirmToken &&
+      !cancelToken
+    ) {
       await context.answerCbQuery('Tác vụ không hợp lệ.', {
         show_alert: true,
       });
@@ -194,190 +204,35 @@ export class TelegramUpdate {
     }
 
     if (confirmToken) {
-      if (
-        !this.rbacService.hasPermission(
-          authorizationResult.user.role,
-          PERMISSIONS.dockerManage,
-        )
-      ) {
-        await context.answerCbQuery(
-          'Bạn không có quyền thực hiện thao tác này.',
-          {
-            show_alert: true,
-          },
-        );
-        return;
-      }
-
-      const resolution = await this.actionRequestService.resolveForActor(
-        confirmToken,
+      await this.handleConfirmationCallback(
+        context,
         authorizationResult.user.id,
+        authorizationResult.user.role,
+        confirmToken,
       );
-
-      if (resolution.status !== 'ready') {
-        await context.answerCbQuery(
-          mapActionResolutionMessage(resolution.status),
-          {
-            show_alert: true,
-          },
-        );
-        return;
-      }
-
-      try {
-        await this.actionRequestService.markConfirmed(resolution.request.id);
-
-        const action = parseDockerManagedAction(resolution.request.actionType);
-
-        if (!action || !resolution.request.resourceId) {
-          throw new Error('Confirmation payload is invalid.');
-        }
-
-        const executedTarget = await this.dockerService.executeAction(
-          resolution.request.resourceId,
-          action,
-        );
-
-        await this.actionRequestService.markExecuted(resolution.request.id);
-        await this.auditService.record({
-          actorUserId: authorizationResult.user.id,
-          action: `telegram.${action}`,
-          resourceType: 'docker_container',
-          resourceId: executedTarget.name,
-          requestId: String(context.update.update_id ?? ''),
-          payloadJson: {
-            containerShortId: executedTarget.shortId,
-          },
-          result: AuditResult.SUCCESS,
-        });
-        await context.answerCbQuery('Đã xác nhận và thực thi thao tác.');
-        await this.menuRenderer.renderScreen(context, {
-          text: [
-            '✅ <b>Thao tác Docker thành công</b>',
-            '',
-            `Container: <b>${escapeHtml(executedTarget.name)}</b>`,
-            `Hành động: <b>${action}</b>`,
-          ].join('\n'),
-          keyboard: buildKeyboard(
-            [],
-            [
-              [{ text: '🐳 Docker', callback_data: TELEGRAM_CALLBACKS.docker }],
-              [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-            ],
-          ),
-        });
-      } catch (error) {
-        await this.actionRequestService.markFailed(resolution.request.id);
-        const failureAuditEntry: {
-          actorUserId: string;
-          action: string;
-          resourceType: string;
-          requestId: string;
-          errorMessage: string;
-          result: AuditResult;
-          resourceId?: string;
-        } = {
-          actorUserId: authorizationResult.user.id,
-          action: 'telegram.docker.confirm',
-          resourceType: 'docker_container',
-          requestId: String(context.update.update_id ?? ''),
-          errorMessage:
-            error instanceof Error ? error.message : 'Unknown error',
-          result: AuditResult.FAILED,
-        };
-
-        if (resolution.request.resourceId) {
-          failureAuditEntry.resourceId = resolution.request.resourceId;
-        }
-
-        await this.auditService.record(failureAuditEntry);
-        await context.answerCbQuery('Không thể thực thi thao tác Docker.', {
-          show_alert: true,
-        });
-      }
       return;
     }
 
     if (cancelToken) {
-      if (
-        !this.rbacService.hasPermission(
-          authorizationResult.user.role,
-          PERMISSIONS.dockerManage,
-        )
-      ) {
-        await context.answerCbQuery(
-          'Bạn không có quyền thực hiện thao tác này.',
-          {
-            show_alert: true,
-          },
-        );
-        return;
-      }
-
-      const resolution = await this.actionRequestService.resolveForActor(
-        cancelToken,
+      await this.handleCancellationCallback(
+        context,
         authorizationResult.user.id,
+        authorizationResult.user.role,
+        cancelToken,
       );
-
-      if (resolution.status !== 'ready') {
-        await context.answerCbQuery(
-          mapActionResolutionMessage(resolution.status),
-          {
-            show_alert: true,
-          },
-        );
-        return;
-      }
-
-      await this.actionRequestService.markCancelled(resolution.request.id);
-      const cancelledAuditEntry: {
-        actorUserId: string;
-        action: string;
-        resourceType: string;
-        requestId: string;
-        result: AuditResult;
-        resourceId?: string;
-      } = {
-        actorUserId: authorizationResult.user.id,
-        action: 'telegram.docker.cancel',
-        resourceType: resolution.request.resourceType,
-        requestId: String(context.update.update_id ?? ''),
-        result: AuditResult.CANCELLED,
-      };
-
-      if (resolution.request.resourceId) {
-        cancelledAuditEntry.resourceId = resolution.request.resourceId;
-      }
-
-      await this.auditService.record(cancelledAuditEntry);
-      await context.answerCbQuery('Đã hủy thao tác.');
-      await this.menuRenderer.renderScreen(context, {
-        text: [
-          '❌ <b>Đã hủy thao tác</b>',
-          '',
-          'Không có thay đổi nào được áp dụng lên Docker.',
-        ].join('\n'),
-        keyboard: buildKeyboard(
-          [],
-          [
-            [{ text: '🐳 Docker', callback_data: TELEGRAM_CALLBACKS.docker }],
-            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-          ],
-        ),
-      });
       return;
     }
 
     if (
-      callbackData === TELEGRAM_CALLBACKS.home ||
-      callbackData === TELEGRAM_CALLBACKS.refresh
+      navigationCallback === TELEGRAM_CALLBACKS.home ||
+      navigationCallback === TELEGRAM_CALLBACKS.refresh
     ) {
       await context.answerCbQuery('Đang làm mới Home...');
       await this.auditService.record({
         actorUserId: authorizationResult.user.id,
         action: 'telegram.refresh',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         result: AuditResult.SUCCESS,
       });
@@ -391,89 +246,33 @@ export class TelegramUpdate {
       return;
     }
 
+    if (backupCreateRequested) {
+      await this.handleBackupCreateRequest(
+        context,
+        authorizationResult.user.id,
+        authorizationResult.user.role,
+      );
+      return;
+    }
+
     if (dockerActionPayload) {
-      if (
-        !this.rbacService.hasPermission(
-          authorizationResult.user.role,
-          PERMISSIONS.dockerManage,
-        )
-      ) {
-        await context.answerCbQuery(
-          'Bạn không có quyền thực hiện thao tác này.',
-          {
-            show_alert: true,
-          },
-        );
-        return;
-      }
-
-      if (!this.dockerService.getDangerousActionsEnabled()) {
-        await context.answerCbQuery(
-          'Dangerous Docker actions đang bị tắt trong cấu hình.',
-          {
-            show_alert: true,
-          },
-        );
-        return;
-      }
-
-      const target = await this.dockerService.findActionTarget(
+      await this.handleDockerActionRequest(
+        context,
+        authorizationResult.user.id,
+        authorizationResult.user.role,
+        dockerActionPayload.action,
         dockerActionPayload.containerShortId,
       );
-      const actionRequest =
-        await this.actionRequestService.createPendingRequest({
-          actorUserId: authorizationResult.user.id,
-          actionType: `docker.${dockerActionPayload.action}`,
-          resourceType: 'docker_container',
-          resourceId: dockerActionPayload.containerShortId,
-          payloadJson: {
-            containerName: target.name,
-            state: target.state,
-          },
-        });
+      return;
+    }
 
-      await this.auditService.record({
-        actorUserId: authorizationResult.user.id,
-        action: 'telegram.docker.request',
-        resourceType: 'docker_container',
-        resourceId: target.name,
-        requestId: String(context.update.update_id ?? ''),
-        payloadJson: {
-          action: dockerActionPayload.action,
-          token: actionRequest.token,
-        },
-        result: AuditResult.STARTED,
-      });
-      await context.answerCbQuery('Cần xác nhận thao tác Docker.');
-      await this.menuRenderer.renderScreen(context, {
-        text: [
-          '⚠️ <b>Xác nhận thao tác Docker</b>',
-          '',
-          `Container: <b>${escapeHtml(target.name)}</b>`,
-          `Hành động: <b>${dockerActionPayload.action}</b>`,
-          'Bạn cần xác nhận trong thời gian hiệu lực trước khi TeleOps thực thi.',
-        ].join('\n'),
-        keyboard: buildKeyboard(
-          [],
-          [
-            [
-              {
-                text: '✅ Xác nhận',
-                callback_data: buildActionConfirmCallback(actionRequest.token),
-              },
-              {
-                text: '❌ Hủy',
-                callback_data: buildActionCancelCallback(actionRequest.token),
-              },
-            ],
-            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-          ],
-        ),
+    if (!navigationCallback) {
+      await context.answerCbQuery('Tác vụ không hợp lệ.', {
+        show_alert: true,
       });
       return;
     }
 
-    const navigationCallback = callbackData as TelegramCallback;
     const requiredPermission = CALLBACK_PERMISSIONS[navigationCallback];
 
     if (
@@ -493,7 +292,7 @@ export class TelegramUpdate {
         actorUserId: authorizationResult.user.id,
         action: 'telegram.callback',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         payloadJson: {
           permission: requiredPermission,
@@ -503,7 +302,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.dashboard) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.dashboard) {
       const dashboardSnapshot =
         await this.dashboardService.getDashboardSnapshot(
           authorizationResult.user.role,
@@ -514,7 +313,7 @@ export class TelegramUpdate {
         actorUserId: authorizationResult.user.id,
         action: 'telegram.dashboard',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         result: AuditResult.SUCCESS,
       });
@@ -537,7 +336,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.database) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.database) {
       const databaseSnapshot = await this.backupService.getDatabaseStatus();
 
       await context.answerCbQuery('Đang tải trạng thái database...');
@@ -545,7 +344,7 @@ export class TelegramUpdate {
         actorUserId: authorizationResult.user.id,
         action: 'telegram.database',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         result: AuditResult.SUCCESS,
       });
@@ -568,7 +367,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.backup) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.backup) {
       const backupSnapshot = await this.backupService.getBackupOverview();
 
       await context.answerCbQuery('Đang tải trạng thái backup...');
@@ -576,7 +375,7 @@ export class TelegramUpdate {
         actorUserId: authorizationResult.user.id,
         action: 'telegram.backup',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         result: AuditResult.SUCCESS,
       });
@@ -610,13 +409,29 @@ export class TelegramUpdate {
               ]
             : ['Chưa có bản ghi backup nào trong hệ thống.']),
         ].join('\n'),
-        keyboard:
-          this.navigationService.buildFeaturePlaceholder('Backup').keyboard,
+        keyboard: buildKeyboard(
+          backupSnapshot.enabled &&
+            this.rbacService.hasPermission(
+              authorizationResult.user.role,
+              PERMISSIONS.backupRun,
+            )
+            ? [
+                {
+                  text: '💾 Tạo backup',
+                  callback_data: buildBackupCreateCallback(),
+                },
+              ]
+            : [],
+          [
+            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+          ],
+        ),
       });
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.docker) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.docker) {
       try {
         const overview = await this.dockerService.getOverview();
         const actionTargets = await this.dockerService.getActionTargets();
@@ -632,7 +447,7 @@ export class TelegramUpdate {
           actorUserId: authorizationResult.user.id,
           action: 'telegram.docker',
           resourceType: 'telegram_callback',
-          resourceId: callbackData,
+          resourceId: navigationCallback,
           requestId: String(context.update.update_id ?? ''),
           result: AuditResult.SUCCESS,
         });
@@ -689,7 +504,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.logs) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.logs) {
       try {
         const logsSnapshot = await this.dockerService.getRecentLogs();
 
@@ -698,7 +513,7 @@ export class TelegramUpdate {
           actorUserId: authorizationResult.user.id,
           action: 'telegram.logs',
           resourceType: 'telegram_callback',
-          resourceId: callbackData,
+          resourceId: navigationCallback,
           requestId: String(context.update.update_id ?? ''),
           result: AuditResult.SUCCESS,
         });
@@ -730,7 +545,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.server) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.server) {
       const serverSnapshot = await this.serverService.getServerSnapshot();
 
       await context.answerCbQuery('Đang tải thông tin server...');
@@ -738,7 +553,7 @@ export class TelegramUpdate {
         actorUserId: authorizationResult.user.id,
         action: 'telegram.server',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         result: AuditResult.SUCCESS,
       });
@@ -760,7 +575,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.users) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.users) {
       const users = await this.usersService.listUserSummaries();
 
       await context.answerCbQuery('Đang tải danh sách người dùng...');
@@ -768,7 +583,7 @@ export class TelegramUpdate {
         actorUserId: authorizationResult.user.id,
         action: 'telegram.users',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         result: AuditResult.SUCCESS,
       });
@@ -789,7 +604,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.settings) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.settings) {
       const settingsSnapshot = await this.settingsService.getSettingsSnapshot();
 
       await context.answerCbQuery('Đang tải cấu hình...');
@@ -797,7 +612,7 @@ export class TelegramUpdate {
         actorUserId: authorizationResult.user.id,
         action: 'telegram.settings',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         result: AuditResult.SUCCESS,
       });
@@ -823,7 +638,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (callbackData === TELEGRAM_CALLBACKS.audit) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.audit) {
       const entries = await this.auditService.listRecent();
 
       await context.answerCbQuery('Đang tải audit log...');
@@ -831,7 +646,7 @@ export class TelegramUpdate {
         actorUserId: authorizationResult.user.id,
         action: 'telegram.audit',
         resourceType: 'telegram_callback',
-        resourceId: callbackData,
+        resourceId: navigationCallback,
         requestId: String(context.update.update_id ?? ''),
         result: AuditResult.SUCCESS,
       });
@@ -857,7 +672,7 @@ export class TelegramUpdate {
       actorUserId: authorizationResult.user.id,
       action: 'telegram.callback',
       resourceType: 'telegram_callback',
-      resourceId: callbackData,
+      resourceId: navigationCallback,
       requestId: String(context.update.update_id ?? ''),
       payloadJson: {
         role: authorizationResult.user.role,
@@ -876,11 +691,404 @@ export class TelegramUpdate {
     this.logger.error({ err: error }, 'Telegram update processing failed.');
   }
 
+  private async handleDockerActionRequest(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+    action: 'start' | 'stop' | 'restart',
+    containerShortId: string,
+  ): Promise<void> {
+    if (!this.rbacService.hasPermission(role, PERMISSIONS.dockerManage)) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    if (!this.dockerService.getDangerousActionsEnabled()) {
+      await context.answerCbQuery(
+        'Dangerous Docker actions đang bị tắt trong cấu hình.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const target = await this.dockerService.findActionTarget(containerShortId);
+    const actionRequest = await this.actionRequestService.createPendingRequest({
+      actorUserId,
+      actionType: `docker.${action}`,
+      resourceType: 'docker_container',
+      resourceId: containerShortId,
+      payloadJson: {
+        containerName: target.name,
+        state: target.state,
+      },
+    });
+
+    await this.auditService.record({
+      actorUserId,
+      action: 'telegram.docker.request',
+      resourceType: 'docker_container',
+      resourceId: target.name,
+      payloadJson: {
+        action,
+        token: actionRequest.token,
+      },
+      result: AuditResult.STARTED,
+    });
+    await context.answerCbQuery('Cần xác nhận thao tác Docker.');
+    await this.menuRenderer.renderScreen(context, {
+      text: [
+        '⚠️ <b>Xác nhận thao tác Docker</b>',
+        '',
+        `Container: <b>${escapeHtml(target.name)}</b>`,
+        `Hành động: <b>${action}</b>`,
+        'Bạn cần xác nhận trong thời gian hiệu lực trước khi TeleOps thực thi.',
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [
+            {
+              text: '✅ Xác nhận',
+              callback_data: buildActionConfirmCallback(actionRequest.token),
+            },
+            {
+              text: '❌ Hủy',
+              callback_data: buildActionCancelCallback(actionRequest.token),
+            },
+          ],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    });
+  }
+
+  private async handleBackupCreateRequest(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+  ): Promise<void> {
+    if (!this.rbacService.hasPermission(role, PERMISSIONS.backupRun)) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const actionRequest = await this.actionRequestService.createPendingRequest({
+      actorUserId,
+      actionType: 'backup.create',
+      resourceType: 'postgres_backup',
+    });
+
+    await this.auditService.record({
+      actorUserId,
+      action: 'telegram.backup.request',
+      resourceType: 'postgres_backup',
+      payloadJson: {
+        token: actionRequest.token,
+      },
+      result: AuditResult.STARTED,
+    });
+    await context.answerCbQuery('Cần xác nhận tạo backup.');
+    await this.menuRenderer.renderScreen(context, {
+      text: [
+        '⚠️ <b>Xác nhận tạo backup</b>',
+        '',
+        'TeleOps sẽ chạy pg_dump và lưu bản sao vào thư mục backup đã cấu hình.',
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [
+            {
+              text: '✅ Xác nhận',
+              callback_data: buildActionConfirmCallback(actionRequest.token),
+            },
+            {
+              text: '❌ Hủy',
+              callback_data: buildActionCancelCallback(actionRequest.token),
+            },
+          ],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    });
+  }
+
+  private async handleConfirmationCallback(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+    token: string,
+  ): Promise<void> {
+    const resolution = await this.actionRequestService.resolveForActor(
+      token,
+      actorUserId,
+    );
+
+    if (resolution.status !== 'ready') {
+      await context.answerCbQuery(
+        mapActionResolutionMessage(resolution.status),
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const requiredPermission = getPermissionForActionType(
+      resolution.request.actionType,
+    );
+
+    if (
+      requiredPermission &&
+      !this.rbacService.hasPermission(role, requiredPermission)
+    ) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    try {
+      await this.actionRequestService.markConfirmed(resolution.request.id);
+
+      const dockerAction = parseDockerManagedAction(
+        resolution.request.actionType,
+      );
+
+      if (dockerAction && resolution.request.resourceId) {
+        const executedTarget = await this.dockerService.executeAction(
+          resolution.request.resourceId,
+          dockerAction,
+        );
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId,
+          action: `telegram.${dockerAction}`,
+          resourceType: 'docker_container',
+          resourceId: executedTarget.name,
+          payloadJson: {
+            containerShortId: executedTarget.shortId,
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã xác nhận và thực thi thao tác.');
+        await this.menuRenderer.renderScreen(
+          context,
+          buildDockerSuccessScreen(dockerAction, executedTarget.name),
+        );
+        return;
+      }
+
+      if (resolution.request.actionType === 'backup.create') {
+        const backupResult = await this.backupService.createBackup(actorUserId);
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId,
+          action: 'telegram.backup.execute',
+          resourceType: 'postgres_backup',
+          resourceId: backupResult.filename,
+          payloadJson: {
+            checksumSha256: backupResult.checksumSha256,
+            sizeBytes: backupResult.sizeBytes.toString(),
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã tạo backup thành công.');
+        await this.menuRenderer.renderScreen(
+          context,
+          buildBackupSuccessScreen(backupResult),
+        );
+        return;
+      }
+
+      throw new Error('Confirmation payload is invalid.');
+    } catch (error) {
+      await this.actionRequestService.markFailed(resolution.request.id);
+      const failureAuditEntry: {
+        actorUserId: string;
+        action: string;
+        resourceType: string;
+        errorMessage: string;
+        result: AuditResult;
+        resourceId?: string;
+      } = {
+        actorUserId,
+        action: 'telegram.action.confirm',
+        resourceType: resolution.request.resourceType,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        result: AuditResult.FAILED,
+      };
+
+      if (resolution.request.resourceId) {
+        failureAuditEntry.resourceId = resolution.request.resourceId;
+      }
+
+      await this.auditService.record(failureAuditEntry);
+      await context.answerCbQuery('Không thể thực thi thao tác đã xác nhận.', {
+        show_alert: true,
+      });
+    }
+  }
+
+  private async handleCancellationCallback(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+    token: string,
+  ): Promise<void> {
+    const resolution = await this.actionRequestService.resolveForActor(
+      token,
+      actorUserId,
+    );
+
+    if (resolution.status !== 'ready') {
+      await context.answerCbQuery(
+        mapActionResolutionMessage(resolution.status),
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const requiredPermission = getPermissionForActionType(
+      resolution.request.actionType,
+    );
+
+    if (
+      requiredPermission &&
+      !this.rbacService.hasPermission(role, requiredPermission)
+    ) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    await this.actionRequestService.markCancelled(resolution.request.id);
+    const cancelledAuditEntry: {
+      actorUserId: string;
+      action: string;
+      resourceType: string;
+      result: AuditResult;
+      resourceId?: string;
+    } = {
+      actorUserId,
+      action: 'telegram.action.cancel',
+      resourceType: resolution.request.resourceType,
+      result: AuditResult.CANCELLED,
+    };
+
+    if (resolution.request.resourceId) {
+      cancelledAuditEntry.resourceId = resolution.request.resourceId;
+    }
+
+    await this.auditService.record(cancelledAuditEntry);
+    await context.answerCbQuery('Đã hủy thao tác.');
+    await this.menuRenderer.renderScreen(
+      context,
+      buildCancelledScreen(resolution.request.actionType),
+    );
+  }
+
   private isNavigationCallback(value: string): value is TelegramCallback {
     return Object.values(TELEGRAM_CALLBACKS).includes(
       value as TelegramCallback,
     );
   }
+}
+
+function buildDockerSuccessScreen(
+  action: 'start' | 'stop' | 'restart',
+  containerName: string,
+): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  return {
+    text: [
+      '✅ <b>Thao tác Docker thành công</b>',
+      '',
+      `Container: <b>${escapeHtml(containerName)}</b>`,
+      `Hành động: <b>${action}</b>`,
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: '🐳 Docker', callback_data: TELEGRAM_CALLBACKS.docker }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
+}
+
+function buildBackupSuccessScreen(backupResult: BackupExecutionResult): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  return {
+    text: [
+      '✅ <b>Tạo backup thành công</b>',
+      '',
+      `File: <code>${escapeHtml(backupResult.filename)}</code>`,
+      `Kích thước: <b>${formatBigIntBytes(backupResult.sizeBytes)}</b>`,
+      `SHA-256: <code>${escapeHtml(backupResult.checksumSha256)}</code>`,
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: '💾 Backup', callback_data: TELEGRAM_CALLBACKS.backup }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
+}
+
+function buildCancelledScreen(actionType: string): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  const destinationCallback =
+    actionType === 'backup.create'
+      ? TELEGRAM_CALLBACKS.backup
+      : TELEGRAM_CALLBACKS.docker;
+  const destinationLabel =
+    actionType === 'backup.create' ? '💾 Backup' : '🐳 Docker';
+
+  return {
+    text: [
+      '❌ <b>Đã hủy thao tác</b>',
+      '',
+      'Không có thay đổi nào được áp dụng.',
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: destinationLabel, callback_data: destinationCallback }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
 }
 
 function formatPercent(value: number): string {
@@ -961,6 +1169,18 @@ function parseDockerManagedAction(
 ): 'start' | 'stop' | 'restart' | null {
   const match = actionType.match(/^docker\.(start|stop|restart)$/);
   return (match?.[1] as 'start' | 'stop' | 'restart' | undefined) ?? null;
+}
+
+function getPermissionForActionType(actionType: string): Permission | null {
+  if (actionType.startsWith('docker.')) {
+    return PERMISSIONS.dockerManage;
+  }
+
+  if (actionType === 'backup.create') {
+    return PERMISSIONS.backupRun;
+  }
+
+  return null;
 }
 
 function getDockerActionEmoji(action: 'start' | 'stop' | 'restart'): string {

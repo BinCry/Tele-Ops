@@ -65,13 +65,16 @@ describe('TelegramUpdate', () => {
   let backupService: {
     getDatabaseStatus: jest.Mock;
     getBackupOverview: jest.Mock;
+    createBackup: jest.Mock;
   };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
   let dockerService: {
     getOverview: jest.Mock;
     getRecentLogs: jest.Mock;
     getDangerousActionsEnabled: jest.Mock;
+    getActionTargets: jest.Mock;
     findActionTarget: jest.Mock;
+    executeAction: jest.Mock;
   };
   let serverService: { getServerSnapshot: jest.Mock };
   let usersService: { listUserSummaries: jest.Mock };
@@ -98,6 +101,7 @@ describe('TelegramUpdate', () => {
     backupService = {
       getDatabaseStatus: jest.fn(),
       getBackupOverview: jest.fn(),
+      createBackup: jest.fn(),
     };
     dashboardService = {
       getDashboardSnapshot: jest.fn(),
@@ -106,7 +110,9 @@ describe('TelegramUpdate', () => {
       getOverview: jest.fn(),
       getRecentLogs: jest.fn(),
       getDangerousActionsEnabled: jest.fn(),
+      getActionTargets: jest.fn(),
       findActionTarget: jest.fn(),
+      executeAction: jest.fn(),
     };
     serverService = {
       getServerSnapshot: jest.fn(),
@@ -309,5 +315,80 @@ describe('TelegramUpdate', () => {
       }),
     );
     expect(actionRequestService.createPendingRequest).toHaveBeenCalled();
+  });
+
+  it('creates a confirmation flow for backup execution requests', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.createPendingRequest.mockResolvedValue({
+      id: 'request-1',
+      token: '6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    });
+
+    await telegramUpdate.handleCallback(context, 'action:backup:create');
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith('Cần xác nhận tạo backup.');
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('pg_dump'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('executes backup creation after confirmation', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.resolveForActor.mockResolvedValue({
+      status: 'ready',
+      request: {
+        id: 'request-1',
+        actionType: 'backup.create',
+        resourceType: 'postgres_backup',
+        resourceId: null,
+      },
+    });
+    backupService.createBackup.mockResolvedValue({
+      filename: 'teleops-20260805-120000.sql',
+      storagePath: '/data/backups/teleops-20260805-120000.sql',
+      checksumSha256: 'a'.repeat(64),
+      sizeBytes: BigInt(1024),
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:confirm:6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith('Đã tạo backup thành công.');
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('teleops-20260805-120000.sql'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+    expect(backupService.createBackup).toHaveBeenCalledWith('user-1');
   });
 });

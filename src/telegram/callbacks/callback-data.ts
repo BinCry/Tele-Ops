@@ -23,6 +23,7 @@ export type DockerActionCallbackPayload = {
 };
 
 const DOCKER_ACTION_PREFIX = 'action:docker';
+const BACKUP_CREATE_CALLBACK = 'action:backup:create';
 const ACTION_CONFIRM_PREFIX = 'action:confirm';
 const ACTION_CANCEL_PREFIX = 'action:cancel';
 
@@ -48,6 +49,14 @@ export function parseDockerActionCallback(
     action: match[1] as DockerActionCallbackPayload['action'],
     containerShortId: match[2] ?? '',
   };
+}
+
+export function buildBackupCreateCallback(): string {
+  return BACKUP_CREATE_CALLBACK;
+}
+
+export function isBackupCreateCallback(value: string): boolean {
+  return value === BACKUP_CREATE_CALLBACK;
 }
 
 export function buildActionConfirmCallback(token: string): string {

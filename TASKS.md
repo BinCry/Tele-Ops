@@ -49,5 +49,6 @@ Updated: 2026-08-05
 - [x] Enforced backend permission checks before every implemented Telegram feature screen.
 - [x] Added persisted Docker action confirmations with backend token validation and role-gated start/stop/restart flows.
 - [x] Added backend backup execution foundation with `pg_dump` gateway, persisted `BackupRecord`, checksum generation, and retention cleanup.
-- [ ] Finish backup execution jobs, retention handling, and downloadable artifacts.
+- [x] Added Telegram-triggered backup execution with confirmation tokens and audit trail.
+- [ ] Finish backup artifact delivery and download constraints.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
