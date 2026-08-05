@@ -1,6 +1,7 @@
 import { UserRole, UserStatus } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
+import { ActionRequestService } from 'src/modules/action-request/action-request.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { BackupService } from 'src/modules/backup/backup.service';
@@ -53,12 +54,25 @@ describe('TelegramUpdate', () => {
   let authService: { authorizeTelegramContext: jest.Mock };
   let auditService: { record: jest.Mock };
   let rateLimitService: { consume: jest.Mock };
+  let actionRequestService: {
+    createPendingRequest: jest.Mock;
+    resolveForActor: jest.Mock;
+    markConfirmed: jest.Mock;
+    markExecuted: jest.Mock;
+    markCancelled: jest.Mock;
+    markFailed: jest.Mock;
+  };
   let backupService: {
     getDatabaseStatus: jest.Mock;
     getBackupOverview: jest.Mock;
   };
   let dashboardService: { getDashboardSnapshot: jest.Mock };
-  let dockerService: { getOverview: jest.Mock; getRecentLogs: jest.Mock };
+  let dockerService: {
+    getOverview: jest.Mock;
+    getRecentLogs: jest.Mock;
+    getDangerousActionsEnabled: jest.Mock;
+    findActionTarget: jest.Mock;
+  };
   let serverService: { getServerSnapshot: jest.Mock };
   let usersService: { listUserSummaries: jest.Mock };
   let settingsService: { getSettingsSnapshot: jest.Mock };
@@ -66,6 +80,14 @@ describe('TelegramUpdate', () => {
   beforeEach(() => {
     authService = {
       authorizeTelegramContext: jest.fn(),
+    };
+    actionRequestService = {
+      createPendingRequest: jest.fn(),
+      resolveForActor: jest.fn(),
+      markConfirmed: jest.fn().mockResolvedValue(undefined),
+      markExecuted: jest.fn().mockResolvedValue(undefined),
+      markCancelled: jest.fn().mockResolvedValue(undefined),
+      markFailed: jest.fn().mockResolvedValue(undefined),
     };
     auditService = {
       record: jest.fn().mockResolvedValue(undefined),
@@ -83,6 +105,8 @@ describe('TelegramUpdate', () => {
     dockerService = {
       getOverview: jest.fn(),
       getRecentLogs: jest.fn(),
+      getDangerousActionsEnabled: jest.fn(),
+      findActionTarget: jest.fn(),
     };
     serverService = {
       getServerSnapshot: jest.fn(),
@@ -95,6 +119,7 @@ describe('TelegramUpdate', () => {
     };
 
     telegramUpdate = new TelegramUpdate(
+      actionRequestService as unknown as ActionRequestService,
       authService as unknown as AuthService,
       auditService as unknown as AuditService,
       new RbacService(),
@@ -238,5 +263,51 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).not.toHaveBeenCalled();
     expect(dockerService.getOverview).not.toHaveBeenCalled();
+  });
+
+  it('creates a confirmation flow for docker restart requests', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    dockerService.getDangerousActionsEnabled.mockReturnValue(true);
+    dockerService.findActionTarget.mockResolvedValue({
+      id: '1234567890ab',
+      shortId: '1234567890ab',
+      name: 'teleops-app',
+      image: 'teleops:latest',
+      state: 'running',
+      status: 'Up 5m',
+      availableActions: ['restart', 'stop'],
+    });
+    actionRequestService.createPendingRequest.mockResolvedValue({
+      id: 'request-1',
+      token: '6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:docker:restart:1234567890ab',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Cần xác nhận thao tác Docker.',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('teleops-app'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+    expect(actionRequestService.createPendingRequest).toHaveBeenCalled();
   });
 });

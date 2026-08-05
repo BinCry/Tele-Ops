@@ -21,3 +21,5 @@
 - Added backup module groundwork with database reachability checks, backup environment probes, and Telegram screens for `Database` and `Backup`.
 - Added read-only Telegram screens for `Users`, `Settings`, and `Audit`.
 - Fixed Telegram callback authorization so backend permission checks run before all implemented feature screens render.
+- Added persisted `ActionRequest` confirmation flow for Docker start/stop/restart actions with token-based confirm/cancel handling.
+- Added backend-only `docker.manage` permission and allowlist-aware Docker action buttons in the Telegram Docker screen.

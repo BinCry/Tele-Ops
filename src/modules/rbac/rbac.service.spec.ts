@@ -22,6 +22,9 @@ describe('RbacService', () => {
       service.hasPermission(UserRole.OPERATOR, PERMISSIONS.dockerView),
     ).toBe(true);
     expect(
+      service.hasPermission(UserRole.OPERATOR, PERMISSIONS.dockerManage),
+    ).toBe(true);
+    expect(
       service.hasPermission(UserRole.OPERATOR, PERMISSIONS.backupRun),
     ).toBe(true);
   });

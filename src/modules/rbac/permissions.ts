@@ -2,6 +2,7 @@ export const PERMISSIONS = {
   dashboardView: 'dashboard.view',
   serverView: 'server.view',
   dockerView: 'docker.view',
+  dockerManage: 'docker.manage',
   logsView: 'logs.view',
   deployRun: 'deploy.run',
   databaseView: 'database.view',

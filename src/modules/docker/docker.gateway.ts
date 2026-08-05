@@ -10,6 +10,8 @@ export type DockerContainerSummary = {
   status: string;
 };
 
+export type DockerManagedAction = 'start' | 'stop' | 'restart';
+
 @Injectable()
 export class DockerGateway {
   private readonly client: Docker;
@@ -51,6 +53,25 @@ export class DockerGateway {
       .split('\n')
       .map((line) => line.trimEnd())
       .filter((line) => line.length > 0);
+  }
+
+  async startContainer(containerId: string): Promise<void> {
+    const container = this.client.getContainer(containerId);
+    await container.start();
+  }
+
+  async stopContainer(containerId: string): Promise<void> {
+    const container = this.client.getContainer(containerId);
+    await container.stop({
+      t: 10,
+    });
+  }
+
+  async restartContainer(containerId: string): Promise<void> {
+    const container = this.client.getContainer(containerId);
+    await container.restart({
+      t: 10,
+    });
   }
 }
 

@@ -16,3 +16,54 @@ export const TELEGRAM_CALLBACKS = {
 
 export type TelegramCallback =
   (typeof TELEGRAM_CALLBACKS)[keyof typeof TELEGRAM_CALLBACKS];
+
+export type DockerActionCallbackPayload = {
+  action: 'start' | 'stop' | 'restart';
+  containerShortId: string;
+};
+
+const DOCKER_ACTION_PREFIX = 'action:docker';
+const ACTION_CONFIRM_PREFIX = 'action:confirm';
+const ACTION_CANCEL_PREFIX = 'action:cancel';
+
+export function buildDockerActionCallback(
+  action: DockerActionCallbackPayload['action'],
+  containerShortId: string,
+): string {
+  return `${DOCKER_ACTION_PREFIX}:${action}:${containerShortId}`;
+}
+
+export function parseDockerActionCallback(
+  value: string,
+): DockerActionCallbackPayload | null {
+  const match = value.match(
+    /^action:docker:(start|stop|restart):([a-zA-Z0-9]{1,12})$/,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    action: match[1] as DockerActionCallbackPayload['action'],
+    containerShortId: match[2] ?? '',
+  };
+}
+
+export function buildActionConfirmCallback(token: string): string {
+  return `${ACTION_CONFIRM_PREFIX}:${token}`;
+}
+
+export function parseActionConfirmCallback(value: string): string | null {
+  const match = value.match(/^action:confirm:([a-f0-9-]{36})$/i);
+  return match?.[1] ?? null;
+}
+
+export function buildActionCancelCallback(token: string): string {
+  return `${ACTION_CANCEL_PREFIX}:${token}`;
+}
+
+export function parseActionCancelCallback(value: string): string | null {
+  const match = value.match(/^action:cancel:([a-f0-9-]{36})$/i);
+  return match?.[1] ?? null;
+}

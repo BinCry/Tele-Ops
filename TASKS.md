@@ -47,5 +47,6 @@ Updated: 2026-08-05
 - [x] Added live Telegram visibility for database connectivity and backup environment readiness.
 - [x] Replaced placeholder Telegram screens for users, settings, and audit with read-only data views.
 - [x] Enforced backend permission checks before every implemented Telegram feature screen.
+- [x] Added persisted Docker action confirmations with backend token validation and role-gated start/stop/restart flows.
 - [ ] Finish backup execution jobs, retention handling, and downloadable artifacts.
-- [ ] Finish Docker mutation flows with confirmation tokens and queued execution.
+- [ ] Add queued execution and richer per-container drill-down for Docker mutations.

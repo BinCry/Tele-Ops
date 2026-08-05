@@ -42,4 +42,44 @@ describe('DockerService', () => {
       restricted: true,
     });
   });
+
+  it('executes restart only when dangerous actions are enabled', async () => {
+    const gateway = {
+      listContainers: jest.fn().mockResolvedValue([
+        {
+          id: '1234567890ab',
+          name: 'teleops-app',
+          image: 'teleops:latest',
+          state: 'running',
+          status: 'Up 5m',
+        },
+      ]),
+      restartContainer: jest.fn().mockResolvedValue(undefined),
+    } as unknown as DockerGateway;
+
+    const configService = {
+      get: jest.fn((key: string) => {
+        if (key === 'allowlists.containers') {
+          return [];
+        }
+
+        if (key === 'security.dangerousActionsEnabled') {
+          return true;
+        }
+
+        return [];
+      }),
+    } as unknown as ConfigService;
+
+    const service = new DockerService(gateway, configService);
+
+    await expect(
+      service.executeAction('1234567890ab', 'restart'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        name: 'teleops-app',
+        shortId: '1234567890ab',
+      }),
+    );
+  });
 });

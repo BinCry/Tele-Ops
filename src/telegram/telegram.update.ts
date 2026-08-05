@@ -2,6 +2,7 @@ import { AuditResult } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { TelegramRateLimitService } from 'src/common/rate-limit/telegram-rate-limit.service';
+import { ActionRequestService } from 'src/modules/action-request/action-request.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { AuditService } from 'src/modules/audit/audit.service';
 import { BackupService } from 'src/modules/backup/backup.service';
@@ -13,10 +14,17 @@ import { ServerService } from 'src/modules/server/server.service';
 import { SettingsService } from 'src/modules/settings/settings.service';
 import { UsersService } from 'src/modules/users/users.service';
 import {
+  buildActionCancelCallback,
+  buildActionConfirmCallback,
+  buildDockerActionCallback,
+  parseActionCancelCallback,
+  parseActionConfirmCallback,
+  parseDockerActionCallback,
   TELEGRAM_CALLBACKS,
   TelegramCallback,
 } from './callbacks/callback-data';
 import { TelegramBotContext } from './context/telegram-context';
+import { buildKeyboard } from './keyboards/home.keyboard';
 import { TelegramNavigationService } from './navigation/navigation.service';
 import { TelegramMenuRenderer } from './renderers/menu-renderer.service';
 
@@ -53,6 +61,7 @@ const CALLBACK_PERMISSIONS: Partial<Record<TelegramCallback, Permission>> = {
 @Injectable()
 export class TelegramUpdate {
   constructor(
+    private readonly actionRequestService: ActionRequestService,
     private readonly authService: AuthService,
     private readonly auditService: AuditService,
     private readonly rbacService: RbacService,
@@ -140,7 +149,16 @@ export class TelegramUpdate {
       return;
     }
 
-    if (!this.isNavigationCallback(callbackData)) {
+    const dockerActionPayload = parseDockerActionCallback(callbackData);
+    const confirmToken = parseActionConfirmCallback(callbackData);
+    const cancelToken = parseActionCancelCallback(callbackData);
+    const isKnownCallback =
+      this.isNavigationCallback(callbackData) ||
+      dockerActionPayload !== null ||
+      confirmToken !== null ||
+      cancelToken !== null;
+
+    if (!isKnownCallback) {
       await context.answerCbQuery('Tác vụ không hợp lệ.', {
         show_alert: true,
       });
@@ -175,6 +193,181 @@ export class TelegramUpdate {
       return;
     }
 
+    if (confirmToken) {
+      if (
+        !this.rbacService.hasPermission(
+          authorizationResult.user.role,
+          PERMISSIONS.dockerManage,
+        )
+      ) {
+        await context.answerCbQuery(
+          'Bạn không có quyền thực hiện thao tác này.',
+          {
+            show_alert: true,
+          },
+        );
+        return;
+      }
+
+      const resolution = await this.actionRequestService.resolveForActor(
+        confirmToken,
+        authorizationResult.user.id,
+      );
+
+      if (resolution.status !== 'ready') {
+        await context.answerCbQuery(
+          mapActionResolutionMessage(resolution.status),
+          {
+            show_alert: true,
+          },
+        );
+        return;
+      }
+
+      try {
+        await this.actionRequestService.markConfirmed(resolution.request.id);
+
+        const action = parseDockerManagedAction(resolution.request.actionType);
+
+        if (!action || !resolution.request.resourceId) {
+          throw new Error('Confirmation payload is invalid.');
+        }
+
+        const executedTarget = await this.dockerService.executeAction(
+          resolution.request.resourceId,
+          action,
+        );
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId: authorizationResult.user.id,
+          action: `telegram.${action}`,
+          resourceType: 'docker_container',
+          resourceId: executedTarget.name,
+          requestId: String(context.update.update_id ?? ''),
+          payloadJson: {
+            containerShortId: executedTarget.shortId,
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã xác nhận và thực thi thao tác.');
+        await this.menuRenderer.renderScreen(context, {
+          text: [
+            '✅ <b>Thao tác Docker thành công</b>',
+            '',
+            `Container: <b>${escapeHtml(executedTarget.name)}</b>`,
+            `Hành động: <b>${action}</b>`,
+          ].join('\n'),
+          keyboard: buildKeyboard(
+            [],
+            [
+              [{ text: '🐳 Docker', callback_data: TELEGRAM_CALLBACKS.docker }],
+              [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+            ],
+          ),
+        });
+      } catch (error) {
+        await this.actionRequestService.markFailed(resolution.request.id);
+        const failureAuditEntry: {
+          actorUserId: string;
+          action: string;
+          resourceType: string;
+          requestId: string;
+          errorMessage: string;
+          result: AuditResult;
+          resourceId?: string;
+        } = {
+          actorUserId: authorizationResult.user.id,
+          action: 'telegram.docker.confirm',
+          resourceType: 'docker_container',
+          requestId: String(context.update.update_id ?? ''),
+          errorMessage:
+            error instanceof Error ? error.message : 'Unknown error',
+          result: AuditResult.FAILED,
+        };
+
+        if (resolution.request.resourceId) {
+          failureAuditEntry.resourceId = resolution.request.resourceId;
+        }
+
+        await this.auditService.record(failureAuditEntry);
+        await context.answerCbQuery('Không thể thực thi thao tác Docker.', {
+          show_alert: true,
+        });
+      }
+      return;
+    }
+
+    if (cancelToken) {
+      if (
+        !this.rbacService.hasPermission(
+          authorizationResult.user.role,
+          PERMISSIONS.dockerManage,
+        )
+      ) {
+        await context.answerCbQuery(
+          'Bạn không có quyền thực hiện thao tác này.',
+          {
+            show_alert: true,
+          },
+        );
+        return;
+      }
+
+      const resolution = await this.actionRequestService.resolveForActor(
+        cancelToken,
+        authorizationResult.user.id,
+      );
+
+      if (resolution.status !== 'ready') {
+        await context.answerCbQuery(
+          mapActionResolutionMessage(resolution.status),
+          {
+            show_alert: true,
+          },
+        );
+        return;
+      }
+
+      await this.actionRequestService.markCancelled(resolution.request.id);
+      const cancelledAuditEntry: {
+        actorUserId: string;
+        action: string;
+        resourceType: string;
+        requestId: string;
+        result: AuditResult;
+        resourceId?: string;
+      } = {
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.docker.cancel',
+        resourceType: resolution.request.resourceType,
+        requestId: String(context.update.update_id ?? ''),
+        result: AuditResult.CANCELLED,
+      };
+
+      if (resolution.request.resourceId) {
+        cancelledAuditEntry.resourceId = resolution.request.resourceId;
+      }
+
+      await this.auditService.record(cancelledAuditEntry);
+      await context.answerCbQuery('Đã hủy thao tác.');
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '❌ <b>Đã hủy thao tác</b>',
+          '',
+          'Không có thay đổi nào được áp dụng lên Docker.',
+        ].join('\n'),
+        keyboard: buildKeyboard(
+          [],
+          [
+            [{ text: '🐳 Docker', callback_data: TELEGRAM_CALLBACKS.docker }],
+            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+          ],
+        ),
+      });
+      return;
+    }
+
     if (
       callbackData === TELEGRAM_CALLBACKS.home ||
       callbackData === TELEGRAM_CALLBACKS.refresh
@@ -198,7 +391,90 @@ export class TelegramUpdate {
       return;
     }
 
-    const requiredPermission = CALLBACK_PERMISSIONS[callbackData];
+    if (dockerActionPayload) {
+      if (
+        !this.rbacService.hasPermission(
+          authorizationResult.user.role,
+          PERMISSIONS.dockerManage,
+        )
+      ) {
+        await context.answerCbQuery(
+          'Bạn không có quyền thực hiện thao tác này.',
+          {
+            show_alert: true,
+          },
+        );
+        return;
+      }
+
+      if (!this.dockerService.getDangerousActionsEnabled()) {
+        await context.answerCbQuery(
+          'Dangerous Docker actions đang bị tắt trong cấu hình.',
+          {
+            show_alert: true,
+          },
+        );
+        return;
+      }
+
+      const target = await this.dockerService.findActionTarget(
+        dockerActionPayload.containerShortId,
+      );
+      const actionRequest =
+        await this.actionRequestService.createPendingRequest({
+          actorUserId: authorizationResult.user.id,
+          actionType: `docker.${dockerActionPayload.action}`,
+          resourceType: 'docker_container',
+          resourceId: dockerActionPayload.containerShortId,
+          payloadJson: {
+            containerName: target.name,
+            state: target.state,
+          },
+        });
+
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.docker.request',
+        resourceType: 'docker_container',
+        resourceId: target.name,
+        requestId: String(context.update.update_id ?? ''),
+        payloadJson: {
+          action: dockerActionPayload.action,
+          token: actionRequest.token,
+        },
+        result: AuditResult.STARTED,
+      });
+      await context.answerCbQuery('Cần xác nhận thao tác Docker.');
+      await this.menuRenderer.renderScreen(context, {
+        text: [
+          '⚠️ <b>Xác nhận thao tác Docker</b>',
+          '',
+          `Container: <b>${escapeHtml(target.name)}</b>`,
+          `Hành động: <b>${dockerActionPayload.action}</b>`,
+          'Bạn cần xác nhận trong thời gian hiệu lực trước khi TeleOps thực thi.',
+        ].join('\n'),
+        keyboard: buildKeyboard(
+          [],
+          [
+            [
+              {
+                text: '✅ Xác nhận',
+                callback_data: buildActionConfirmCallback(actionRequest.token),
+              },
+              {
+                text: '❌ Hủy',
+                callback_data: buildActionCancelCallback(actionRequest.token),
+              },
+            ],
+            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+          ],
+        ),
+      });
+      return;
+    }
+
+    const navigationCallback = callbackData as TelegramCallback;
+    const requiredPermission = CALLBACK_PERMISSIONS[navigationCallback];
 
     if (
       requiredPermission &&
@@ -343,6 +619,13 @@ export class TelegramUpdate {
     if (callbackData === TELEGRAM_CALLBACKS.docker) {
       try {
         const overview = await this.dockerService.getOverview();
+        const actionTargets = await this.dockerService.getActionTargets();
+        const canManageDocker = this.rbacService.hasPermission(
+          authorizationResult.user.role,
+          PERMISSIONS.dockerManage,
+        );
+        const dangerousActionsEnabled =
+          this.dockerService.getDangerousActionsEnabled();
 
         await context.answerCbQuery('Đang tải Docker...');
         await this.auditService.record({
@@ -367,9 +650,35 @@ export class TelegramUpdate {
                     `${index + 1}. <b>${escapeHtml(container.name)}</b> | ${escapeHtml(container.state)} | ${escapeHtml(container.status)}`,
                 )
               : ['Không tìm thấy container phù hợp.']),
+            '',
+            dangerousActionsEnabled
+              ? canManageDocker
+                ? 'Có thể thao tác start/stop/restart sau bước xác nhận.'
+                : 'Tài khoản hiện tại chỉ có quyền xem, không thể thao tác.'
+              : 'Dangerous Docker actions đang bị tắt trong cấu hình.',
           ].join('\n'),
-          keyboard:
-            this.navigationService.buildFeaturePlaceholder('Docker').keyboard,
+          keyboard: buildKeyboard(
+            dangerousActionsEnabled && canManageDocker
+              ? actionTargets.flatMap((target) =>
+                  target.availableActions.map((action) => ({
+                    text: `${getDockerActionEmoji(action)} ${target.name}`,
+                    callback_data: buildDockerActionCallback(
+                      action,
+                      target.shortId,
+                    ),
+                  })),
+                )
+              : [],
+            [
+              [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+              [
+                {
+                  text: '🔄 Làm mới',
+                  callback_data: TELEGRAM_CALLBACKS.refresh,
+                },
+              ],
+            ],
+          ),
         });
       } catch (error) {
         await context.answerCbQuery('Không thể kết nối Docker daemon.', {
@@ -558,7 +867,7 @@ export class TelegramUpdate {
     await this.menuRenderer.renderScreen(
       context,
       this.navigationService.buildFeaturePlaceholder(
-        FEATURE_LABELS[callbackData],
+        FEATURE_LABELS[navigationCallback],
       ),
     );
   }
@@ -630,4 +939,37 @@ function escapeHtml(value: string): string {
         return '&amp;';
     }
   });
+}
+
+function mapActionResolutionMessage(
+  status: 'not_found' | 'wrong_actor' | 'already_used' | 'expired',
+): string {
+  switch (status) {
+    case 'not_found':
+      return 'Không tìm thấy yêu cầu xác nhận.';
+    case 'wrong_actor':
+      return 'Yêu cầu xác nhận này không thuộc về bạn.';
+    case 'already_used':
+      return 'Yêu cầu xác nhận này đã được xử lý trước đó.';
+    case 'expired':
+      return 'Yêu cầu xác nhận đã hết hạn.';
+  }
+}
+
+function parseDockerManagedAction(
+  actionType: string,
+): 'start' | 'stop' | 'restart' | null {
+  const match = actionType.match(/^docker\.(start|stop|restart)$/);
+  return (match?.[1] as 'start' | 'stop' | 'restart' | undefined) ?? null;
+}
+
+function getDockerActionEmoji(action: 'start' | 'stop' | 'restart'): string {
+  switch (action) {
+    case 'start':
+      return '▶️';
+    case 'stop':
+      return '⏹';
+    case 'restart':
+      return '🔄';
+  }
 }

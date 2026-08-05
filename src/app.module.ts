@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { configuration } from './config/configuration';
 import { validateEnvironment } from './config/env.schema';
 import { AuditModule } from './modules/audit/audit.module';
+import { ActionRequestModule } from './modules/action-request/action-request.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -54,6 +55,7 @@ const loggerConfig: Params = {
     DatabaseModule,
     UsersModule,
     RbacModule,
+    ActionRequestModule,
     AuditModule,
     AuthModule,
     BackupModule,

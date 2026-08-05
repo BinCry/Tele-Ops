@@ -22,3 +22,4 @@ Updated: 2026-08-05
 6. The first production-ready rate limit layer is an in-memory per-user throttle for Telegram interactions; Redis-backed distributed throttling can replace it later without changing the Telegram handler contract.
 7. Database and backup milestone work starts with read-only health and environment probes in Telegram so operators can validate prerequisites before destructive backup execution is enabled.
 8. Every implemented Telegram feature screen must enforce backend permission checks before loading service data, even when the button is hidden in the UI for lower roles.
+9. Docker mutations use persisted confirmation tokens in `ActionRequest` records so approval is single-use, time-bounded, actor-bound, and auditable from the start.
