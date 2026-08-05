@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { SettingsService } from 'src/modules/settings/settings.service';
 import { DockerGateway } from './docker.gateway';
 import { DockerService } from './docker.service';
 
@@ -27,7 +28,9 @@ describe('DockerService', () => {
       get: jest.fn(() => ['teleops-app']),
     } as unknown as ConfigService;
 
-    const service = new DockerService(gateway, configService);
+    const service = new DockerService(gateway, configService, {
+      getDangerousActionsEnabled: jest.fn().mockResolvedValue(false),
+    } as unknown as SettingsService);
 
     await expect(service.getOverview()).resolves.toEqual({
       containers: [
@@ -63,15 +66,13 @@ describe('DockerService', () => {
           return [];
         }
 
-        if (key === 'security.dangerousActionsEnabled') {
-          return true;
-        }
-
         return [];
       }),
     } as unknown as ConfigService;
 
-    const service = new DockerService(gateway, configService);
+    const service = new DockerService(gateway, configService, {
+      getDangerousActionsEnabled: jest.fn().mockResolvedValue(true),
+    } as unknown as SettingsService);
 
     await expect(
       service.executeAction('1234567890ab', 'restart'),

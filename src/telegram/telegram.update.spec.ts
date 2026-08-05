@@ -103,7 +103,11 @@ describe('TelegramUpdate', () => {
     listUserSummaries: jest.Mock;
     updateUserStatus: jest.Mock;
   };
-  let settingsService: { getSettingsSnapshot: jest.Mock };
+  let settingsService: {
+    getSettingsSnapshot: jest.Mock;
+    setConfirmationTtlSeconds: jest.Mock;
+    setDangerousActionsEnabled: jest.Mock;
+  };
 
   beforeEach(() => {
     authService = {
@@ -151,7 +155,7 @@ describe('TelegramUpdate', () => {
     dockerService = {
       getOverview: jest.fn(),
       getRecentLogs: jest.fn(),
-      getDangerousActionsEnabled: jest.fn(),
+      getDangerousActionsEnabled: jest.fn().mockResolvedValue(false),
       getActionTargets: jest.fn(),
       findActionTarget: jest.fn(),
       executeAction: jest.fn(),
@@ -168,7 +172,21 @@ describe('TelegramUpdate', () => {
       updateUserStatus: jest.fn(),
     };
     settingsService = {
-      getSettingsSnapshot: jest.fn(),
+      getSettingsSnapshot: jest.fn().mockResolvedValue({
+        appName: 'TeleOps',
+        environment: 'production',
+        timezone: 'Asia/Ho_Chi_Minh',
+        dangerousActionsEnabled: false,
+        confirmationTtlSeconds: 60,
+        actionRateLimitPerMinute: 30,
+        encryptionKeyConfigured: true,
+        backupDirectory: '/data/backups',
+        containerAllowlistCount: 2,
+        composeAllowlistCount: 1,
+        persistedSettingCount: 2,
+      }),
+      setConfirmationTtlSeconds: jest.fn().mockResolvedValue(undefined),
+      setDangerousActionsEnabled: jest.fn().mockResolvedValue(undefined),
     };
 
     telegramUpdate = new TelegramUpdate(
@@ -337,7 +355,7 @@ describe('TelegramUpdate', () => {
         status: UserStatus.ACTIVE,
       },
     });
-    dockerService.getDangerousActionsEnabled.mockReturnValue(true);
+    dockerService.getDangerousActionsEnabled.mockResolvedValue(true);
     dockerService.findActionTarget.mockResolvedValue({
       id: '1234567890ab',
       shortId: '1234567890ab',
@@ -749,6 +767,57 @@ describe('TelegramUpdate', () => {
     );
   });
 
+  it('renders the settings screen with runtime setting actions', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    settingsService.getSettingsSnapshot.mockResolvedValue({
+      appName: 'TeleOps',
+      environment: 'production',
+      timezone: 'Asia/Ho_Chi_Minh',
+      dangerousActionsEnabled: false,
+      confirmationTtlSeconds: 60,
+      actionRateLimitPerMinute: 30,
+      encryptionKeyConfigured: true,
+      backupDirectory: '/data/backups',
+      containerAllowlistCount: 2,
+      composeAllowlistCount: 1,
+      persistedSettingCount: 2,
+    });
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.settings);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith('Đang tải cấu hình...');
+    const firstCall = editMessageTextMock.mock.calls.at(0) as
+      | [
+          string,
+          {
+            parse_mode: string;
+            reply_markup: {
+              inline_keyboard: Array<Array<{ callback_data?: string }>>;
+            };
+          },
+        ]
+      | undefined;
+
+    expect(firstCall?.[0]).toContain('Dangerous actions');
+    expect(firstCall?.[1].reply_markup.inline_keyboard.flat()).toContainEqual(
+      expect.objectContaining({
+        callback_data: 'action:settings:dangerous:enable',
+      }),
+    );
+  });
+
   it('creates a confirmation flow for user activation requests', async () => {
     const { context, answerCbQueryMock, editMessageTextMock } =
       createMockContext(123456789, 'callback');
@@ -788,6 +857,60 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('999'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('creates a confirmation flow for settings updates', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.createPendingRequest.mockResolvedValue({
+      id: 'settings-request-1',
+      token: '6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    });
+    settingsService.getSettingsSnapshot.mockResolvedValue({
+      appName: 'TeleOps',
+      environment: 'production',
+      timezone: 'Asia/Ho_Chi_Minh',
+      dangerousActionsEnabled: false,
+      confirmationTtlSeconds: 60,
+      actionRateLimitPerMinute: 30,
+      encryptionKeyConfigured: true,
+      backupDirectory: '/data/backups',
+      containerAllowlistCount: 2,
+      composeAllowlistCount: 1,
+      persistedSettingCount: 2,
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:settings:dangerous:enable',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      expect.stringContaining('settings'),
+    );
+    expect(actionRequestService.createPendingRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: 'settings.dangerous.enable',
+        resourceType: 'setting',
+      }),
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('Dangerous actions'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),
@@ -943,6 +1066,47 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('Guest User'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('executes settings updates after confirmation', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.resolveForActor.mockResolvedValue({
+      status: 'ready',
+      request: {
+        id: 'settings-request-1',
+        actionType: 'settings.confirmation_ttl.set_300',
+        resourceType: 'setting',
+        resourceId: 'Confirmation TTL',
+      },
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:confirm:6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      expect.stringContaining('settings'),
+    );
+    expect(settingsService.setConfirmationTtlSeconds).toHaveBeenCalledWith(300);
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('300s'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),

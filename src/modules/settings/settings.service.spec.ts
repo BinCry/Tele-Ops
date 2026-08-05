@@ -17,7 +17,7 @@ describe('SettingsService', () => {
           case 'app.timezone':
             return 'Asia/Ho_Chi_Minh';
           case 'security.dangerousActionsEnabled':
-            return true;
+            return false;
           case 'security.confirmationTtlSeconds':
             return 120;
           case 'security.actionRateLimitPerMinute':
@@ -33,7 +33,16 @@ describe('SettingsService', () => {
     };
     const prismaService = {
       setting: {
-        count: jest.fn().mockResolvedValue(4),
+        count: jest.fn().mockResolvedValue(2),
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({
+            valueJson: true,
+          })
+          .mockResolvedValueOnce({
+            valueJson: 300,
+          }),
+        upsert: jest.fn(),
       },
     };
 
@@ -47,13 +56,32 @@ describe('SettingsService', () => {
       environment: 'production',
       timezone: 'Asia/Ho_Chi_Minh',
       dangerousActionsEnabled: true,
-      confirmationTtlSeconds: 120,
+      confirmationTtlSeconds: 300,
       actionRateLimitPerMinute: 30,
       encryptionKeyConfigured: true,
       backupDirectory: '/data/backups',
       containerAllowlistCount: 2,
       composeAllowlistCount: 1,
-      persistedSettingCount: 4,
+      persistedSettingCount: 2,
     });
+  });
+
+  it('persists dangerous-actions overrides', async () => {
+    const settingsService = new SettingsService(
+      {
+        get: jest.fn(),
+      } as unknown as ConfigService,
+      {
+        setting: {
+          count: jest.fn(),
+          findUnique: jest.fn(),
+          upsert: jest.fn().mockResolvedValue(undefined),
+        },
+      } as never,
+    );
+
+    await expect(
+      settingsService.setDangerousActionsEnabled(true),
+    ).resolves.toBeUndefined();
   });
 });

@@ -27,8 +27,19 @@ export type UserStatusActionCallbackPayload = {
   targetTelegramUserId: string;
 };
 
+export type SettingsActionCallbackPayload =
+  | {
+      category: 'dangerous';
+      value: 'enable' | 'disable';
+    }
+  | {
+      category: 'ttl';
+      value: '60' | '300';
+    };
+
 const DOCKER_ACTION_PREFIX = 'action:docker';
 const USER_STATUS_ACTION_PREFIX = 'action:user';
+const SETTINGS_ACTION_PREFIX = 'action:settings';
 const DEPLOY_RUN_PREFIX = 'action:deploy:run';
 const DEPLOY_ROLLBACK_PREFIX = 'action:deploy:rollback';
 const BACKUP_CREATE_CALLBACK = 'action:backup:create';
@@ -80,6 +91,42 @@ export function parseUserStatusActionCallback(
     action: match[1] as UserStatusActionCallbackPayload['action'],
     targetTelegramUserId: match[2] ?? '',
   };
+}
+
+export function buildSettingsDangerousActionCallback(
+  value: 'enable' | 'disable',
+): string {
+  return `${SETTINGS_ACTION_PREFIX}:dangerous:${value}`;
+}
+
+export function buildSettingsTtlActionCallback(value: '60' | '300'): string {
+  return `${SETTINGS_ACTION_PREFIX}:ttl:${value}`;
+}
+
+export function parseSettingsActionCallback(
+  value: string,
+): SettingsActionCallbackPayload | null {
+  const dangerousMatch = value.match(
+    /^action:settings:dangerous:(enable|disable)$/,
+  );
+
+  if (dangerousMatch) {
+    return {
+      category: 'dangerous',
+      value: dangerousMatch[1] as 'enable' | 'disable',
+    };
+  }
+
+  const ttlMatch = value.match(/^action:settings:ttl:(60|300)$/);
+
+  if (ttlMatch) {
+    return {
+      category: 'ttl',
+      value: ttlMatch[1] as '60' | '300',
+    };
+  }
+
+  return null;
 }
 
 export function buildBackupCreateCallback(): string {

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ActionRequest, ActionRequestStatus, Prisma } from '@prisma/client';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/database/prisma.service';
+import { SettingsService } from 'src/modules/settings/settings.service';
 
 export type CreateActionRequestInput = {
   actorUserId: string;
@@ -25,7 +25,7 @@ export type ActionRequestResolution =
 export class ActionRequestService {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly configService: ConfigService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async createPendingRequest(
@@ -33,8 +33,7 @@ export class ActionRequestService {
   ): Promise<ActionRequest> {
     const expiresAt = new Date(
       Date.now() +
-        this.configService.get<number>('security.confirmationTtlSeconds', 60) *
-          1000,
+        (await this.settingsService.getConfirmationTtlSeconds()) * 1000,
     );
     const data: Prisma.ActionRequestUncheckedCreateInput = {
       token: randomUUID(),

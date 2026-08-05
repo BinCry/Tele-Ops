@@ -14,9 +14,9 @@ TeleOps is a Telegram-based operations bot for managing services running on a VP
 
 ## Current Status
 
-- Milestones 0 through 4 are complete and pushed.
-- Current capabilities: Telegram auth/RBAC, audit trail, rate limiting, dashboard/server visibility, Docker visibility plus confirmed mutations, PostgreSQL status/backup execution with direct Telegram artifact delivery when size permits plus constrained resend of the latest successful artifact, deploy target execution plus confirmed rollback with active-run guard and post-action health validation, live monitoring overview from health targets, alert rule evaluation with persisted lifecycle plus background polling and optional Telegram notifications, and Telegram-based pending-user activation or disable flows for access control.
-- Current gaps before deploy-ready: richer settings management and full operations documentation.
+- Milestones 0 through 4 and 6 through 9 are complete and pushed in staged slices.
+- Current capabilities: Telegram auth/RBAC, audit trail, rate limiting, dashboard/server visibility, Docker visibility plus confirmed mutations, PostgreSQL status/backup execution with direct Telegram artifact delivery when size permits plus constrained resend of the latest successful artifact, deploy target execution plus confirmed rollback with active-run guard and post-action health validation, live monitoring overview from health targets, alert rule evaluation with persisted lifecycle plus background polling and optional Telegram notifications, Telegram-based pending-user activation or disable flows for access control, and runtime settings overrides for dangerous Docker actions plus confirmation TTL from the Telegram `Settings` screen.
+- Current gaps before deploy-ready: queued Docker execution and richer drill-down, audit visibility and hardening, operations and incident runbooks, and live Docker/Compose validation in an environment with a Docker daemon.
 
 ## Tech Stack
 
@@ -56,6 +56,7 @@ pnpm build
 - Copy `.env.example` to `.env`.
 - Fill in Telegram, database, Redis, and deployment-related environment values.
 - Baseline config examples live in `config/*.example.yaml`.
+- Runtime overrides for `dangerous actions` and `confirmation TTL` are persisted in the `Setting` table and can be changed from the Telegram `Settings` screen without an application restart.
 - `MONITOR_SAMPLE_INTERVAL_SECONDS` controls the shared monitoring and alert polling cadence.
 - Start local infrastructure with `docker compose up -d postgres redis`.
 - Apply the initial schema with `pnpm prisma:migrate:dev --name init`.

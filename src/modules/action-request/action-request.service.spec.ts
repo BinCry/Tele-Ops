@@ -1,5 +1,5 @@
-import { ConfigService } from '@nestjs/config';
 import { ActionRequestStatus, Prisma } from '@prisma/client';
+import { SettingsService } from 'src/modules/settings/settings.service';
 import { ActionRequestService } from './action-request.service';
 
 describe('ActionRequestService', () => {
@@ -13,8 +13,8 @@ describe('ActionRequestService', () => {
       update: jest.Mock<Promise<unknown>, [unknown]>;
     };
   };
-  let configService: {
-    get: jest.Mock;
+  let settingsService: {
+    getConfirmationTtlSeconds: jest.Mock;
   };
   let service: ActionRequestService;
 
@@ -29,12 +29,12 @@ describe('ActionRequestService', () => {
         update: jest.fn<Promise<unknown>, [unknown]>(),
       },
     };
-    configService = {
-      get: jest.fn().mockReturnValue(60),
+    settingsService = {
+      getConfirmationTtlSeconds: jest.fn().mockResolvedValue(60),
     };
     service = new ActionRequestService(
       prismaService as never,
-      configService as unknown as ConfigService,
+      settingsService as unknown as SettingsService,
     );
   });
 

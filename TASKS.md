@@ -37,7 +37,7 @@ Updated: 2026-08-05
 - [x] M6 Deployment workflow.
 - [x] M7 Database status and backup.
 - [x] M8 Monitoring and alerts.
-- [ ] M9 Users and settings.
+- [x] M9 Users and settings.
 - [ ] M10 Audit UI and hardening.
 - [ ] M11 Documentation and deployment guides.
 - [ ] M12 Final validation and deployment readiness.
@@ -61,4 +61,8 @@ Updated: 2026-08-05
 - [x] Added confirmed deployment rollback from Telegram using persisted deployment history, commit checkout, and post-rollback health validation.
 - [x] Finished backup artifact delivery and constrained resend of the latest successful backup artifact through Telegram.
 - [x] Added pending-user onboarding plus Telegram approval/disable management for access control.
+- [x] Added runtime `Settings` controls for dangerous Docker actions and confirmation TTL with persisted overrides plus Telegram confirmation tokens.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
+- [ ] Add audit history browsing plus data-redaction and shutdown hardening.
+- [ ] Write deployment, rollback, backup, and incident runbooks under `docs/operations`.
+- [ ] Re-run Docker-based validation and capture a final readiness report once a Docker daemon is available.

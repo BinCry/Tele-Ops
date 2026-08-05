@@ -35,6 +35,8 @@ import {
   buildDeployRollbackCallback,
   buildDeployRunCallback,
   buildDockerActionCallback,
+  buildSettingsDangerousActionCallback,
+  buildSettingsTtlActionCallback,
   buildUserStatusActionCallback,
   isBackupDownloadLatestCallback,
   isBackupCreateCallback,
@@ -43,7 +45,9 @@ import {
   parseDeployRollbackCallback,
   parseDeployRunCallback,
   parseDockerActionCallback,
+  parseSettingsActionCallback,
   parseUserStatusActionCallback,
+  SettingsActionCallbackPayload,
   TELEGRAM_CALLBACKS,
   TelegramCallback,
 } from './callbacks/callback-data';
@@ -178,6 +182,7 @@ export class TelegramUpdate {
     }
 
     const dockerActionPayload = parseDockerActionCallback(callbackData);
+    const settingsActionPayload = parseSettingsActionCallback(callbackData);
     const userStatusActionPayload = parseUserStatusActionCallback(callbackData);
     const backupCreateRequested = isBackupCreateCallback(callbackData);
     const backupDownloadLatestRequested =
@@ -193,6 +198,7 @@ export class TelegramUpdate {
     if (
       !navigationCallback &&
       !dockerActionPayload &&
+      !settingsActionPayload &&
       !userStatusActionPayload &&
       !backupCreateRequested &&
       !backupDownloadLatestRequested &&
@@ -303,6 +309,16 @@ export class TelegramUpdate {
         authorizationResult.user.role,
         userStatusActionPayload.action,
         userStatusActionPayload.targetTelegramUserId,
+      );
+      return;
+    }
+
+    if (settingsActionPayload) {
+      await this.handleSettingsUpdateRequest(
+        context,
+        authorizationResult.user.id,
+        authorizationResult.user.role,
+        settingsActionPayload,
       );
       return;
     }
@@ -645,7 +661,7 @@ export class TelegramUpdate {
           PERMISSIONS.dockerManage,
         );
         const dangerousActionsEnabled =
-          this.dockerService.getDangerousActionsEnabled();
+          await this.dockerService.getDangerousActionsEnabled();
 
         await context.answerCbQuery('Đang tải Docker...');
         await this.auditService.record({
@@ -848,6 +864,10 @@ export class TelegramUpdate {
 
     if (navigationCallback === TELEGRAM_CALLBACKS.settings) {
       const settingsSnapshot = await this.settingsService.getSettingsSnapshot();
+      const canManageSettings = this.rbacService.hasPermission(
+        authorizationResult.user.role,
+        PERMISSIONS.settingsManage,
+      );
 
       await context.answerCbQuery('Đang tải cấu hình...');
       await this.auditService.record({
@@ -874,8 +894,35 @@ export class TelegramUpdate {
           `Backup directory: <code>${escapeHtml(settingsSnapshot.backupDirectory)}</code>`,
           `Persisted settings: <b>${settingsSnapshot.persistedSettingCount}</b>`,
         ].join('\n'),
-        keyboard:
-          this.navigationService.buildFeaturePlaceholder('Settings').keyboard,
+        keyboard: buildKeyboard(
+          canManageSettings
+            ? [
+                settingsSnapshot.dangerousActionsEnabled
+                  ? {
+                      text: '🛑 Tắt dangerous actions',
+                      callback_data:
+                        buildSettingsDangerousActionCallback('disable'),
+                    }
+                  : {
+                      text: '⚠️ Bật dangerous actions',
+                      callback_data:
+                        buildSettingsDangerousActionCallback('enable'),
+                    },
+                {
+                  text: '⏱ TTL 60s',
+                  callback_data: buildSettingsTtlActionCallback('60'),
+                },
+                {
+                  text: '⏱ TTL 300s',
+                  callback_data: buildSettingsTtlActionCallback('300'),
+                },
+              ]
+            : [],
+          [
+            [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+          ],
+        ),
       });
       return;
     }
@@ -950,7 +997,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (!this.dockerService.getDangerousActionsEnabled()) {
+    if (!(await this.dockerService.getDangerousActionsEnabled())) {
       await context.answerCbQuery(
         'Dangerous Docker actions đang bị tắt trong cấu hình.',
         {
@@ -1198,6 +1245,94 @@ export class TelegramUpdate {
         `Telegram ID: <code>${escapeHtml(targetUser.telegramUserId)}</code>`,
         `Trạng thái hiện tại: <b>${targetUser.status}</b>`,
         `Trạng thái mới: <b>${targetStatus}</b>`,
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [
+            {
+              text: '✅ Xác nhận',
+              callback_data: buildActionConfirmCallback(actionRequest.token),
+            },
+            {
+              text: '❌ Hủy',
+              callback_data: buildActionCancelCallback(actionRequest.token),
+            },
+          ],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    });
+  }
+
+  private async handleSettingsUpdateRequest(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+    settingsAction: SettingsActionCallbackPayload,
+  ): Promise<void> {
+    if (!this.rbacService.hasPermission(role, PERMISSIONS.settingsManage)) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const currentSettings = await this.settingsService.getSettingsSnapshot();
+    const actionDescriptor =
+      settingsAction.category === 'dangerous'
+        ? {
+            actionType:
+              settingsAction.value === 'enable'
+                ? 'settings.dangerous.enable'
+                : 'settings.dangerous.disable',
+            currentValue: currentSettings.dangerousActionsEnabled
+              ? 'Bật'
+              : 'Tắt',
+            targetValue: settingsAction.value === 'enable' ? 'Bật' : 'Tắt',
+            label: 'Dangerous actions',
+          }
+        : {
+            actionType: `settings.confirmation_ttl.set_${settingsAction.value}`,
+            currentValue: `${currentSettings.confirmationTtlSeconds}s`,
+            targetValue: `${settingsAction.value}s`,
+            label: 'Confirmation TTL',
+          };
+
+    const actionRequest = await this.actionRequestService.createPendingRequest({
+      actorUserId,
+      actionType: actionDescriptor.actionType,
+      resourceType: 'setting',
+      resourceId: actionDescriptor.label,
+      payloadJson: {
+        category: settingsAction.category,
+        value: settingsAction.value,
+      },
+    });
+
+    await this.auditService.record({
+      actorUserId,
+      action: 'telegram.settings.request',
+      resourceType: 'setting',
+      resourceId: actionDescriptor.label,
+      payloadJson: {
+        category: settingsAction.category,
+        value: settingsAction.value,
+        token: actionRequest.token,
+      },
+      result: AuditResult.STARTED,
+    });
+    await context.answerCbQuery('Cần xác nhận cập nhật settings.');
+    await this.menuRenderer.renderScreen(context, {
+      text: [
+        '⚠️ <b>Xác nhận cập nhật settings</b>',
+        '',
+        `Mục: <b>${escapeHtml(actionDescriptor.label)}</b>`,
+        `Giá trị hiện tại: <b>${escapeHtml(actionDescriptor.currentValue)}</b>`,
+        `Giá trị mới: <b>${escapeHtml(actionDescriptor.targetValue)}</b>`,
       ].join('\n'),
       keyboard: buildKeyboard(
         [],
@@ -1510,6 +1645,43 @@ export class TelegramUpdate {
         await this.menuRenderer.renderScreen(
           context,
           buildUserStatusSuccessScreen(updatedUser),
+        );
+        return;
+      }
+
+      const settingsMutation = parseSettingsMutationAction(
+        resolution.request.actionType,
+      );
+
+      if (settingsMutation) {
+        if (settingsMutation.kind === 'dangerous') {
+          await this.settingsService.setDangerousActionsEnabled(
+            settingsMutation.value,
+          );
+        } else {
+          await this.settingsService.setConfirmationTtlSeconds(
+            settingsMutation.value,
+          );
+        }
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId,
+          action: 'telegram.settings.execute',
+          resourceType: 'setting',
+          resourceId: settingsMutation.label,
+          payloadJson: {
+            value:
+              settingsMutation.kind === 'dangerous'
+                ? settingsMutation.value
+                : settingsMutation.value.toString(),
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã cập nhật settings thành công.');
+        await this.menuRenderer.renderScreen(
+          context,
+          buildSettingsSuccessScreen(settingsMutation),
         );
         return;
       }
@@ -1874,6 +2046,38 @@ function buildUserStatusSuccessScreen(user: {
   };
 }
 
+function buildSettingsSuccessScreen(settingsMutation: {
+  kind: 'dangerous' | 'ttl';
+  label: string;
+  value: boolean | number;
+}): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  const renderedValue =
+    typeof settingsMutation.value === 'boolean'
+      ? settingsMutation.value
+        ? 'Bật'
+        : 'Tắt'
+      : `${settingsMutation.value}s`;
+
+  return {
+    text: [
+      '✅ <b>Cập nhật settings thành công</b>',
+      '',
+      `Mục: <b>${escapeHtml(settingsMutation.label)}</b>`,
+      `Giá trị mới: <b>${escapeHtml(renderedValue)}</b>`,
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: '⚙️ Settings', callback_data: TELEGRAM_CALLBACKS.settings }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
+}
+
 function buildCancelledScreen(actionType: string): {
   text: string;
   keyboard: ReturnType<typeof buildKeyboard>;
@@ -1889,6 +2093,23 @@ function buildCancelledScreen(actionType: string): {
         [],
         [
           [{ text: '🚀 Deploy', callback_data: TELEGRAM_CALLBACKS.deploy }],
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+        ],
+      ),
+    };
+  }
+
+  if (actionType.startsWith('settings.')) {
+    return {
+      text: [
+        '❌ <b>Đã hủy thao tác</b>',
+        '',
+        'Không có thay đổi nào được áp dụng.',
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          [{ text: '⚙️ Settings', callback_data: TELEGRAM_CALLBACKS.settings }],
           [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
         ],
       ),
@@ -2024,6 +2245,10 @@ function getPermissionForActionType(actionType: string): Permission | null {
     return PERMISSIONS.backupRun;
   }
 
+  if (actionType.startsWith('settings.')) {
+    return PERMISSIONS.settingsManage;
+  }
+
   if (actionType.startsWith('user.')) {
     return PERMISSIONS.usersManage;
   }
@@ -2068,6 +2293,49 @@ function parseUserTargetStatus(actionType: string): UserStatus | null {
 
   if (actionType === 'user.disable') {
     return UserStatus.DISABLED;
+  }
+
+  return null;
+}
+
+function parseSettingsMutationAction(actionType: string):
+  | {
+      kind: 'dangerous';
+      label: string;
+      value: boolean;
+    }
+  | {
+      kind: 'ttl';
+      label: string;
+      value: number;
+    }
+  | null {
+  if (actionType === 'settings.dangerous.enable') {
+    return {
+      kind: 'dangerous',
+      label: 'Dangerous actions',
+      value: true,
+    };
+  }
+
+  if (actionType === 'settings.dangerous.disable') {
+    return {
+      kind: 'dangerous',
+      label: 'Dangerous actions',
+      value: false,
+    };
+  }
+
+  const ttlMatch = actionType.match(
+    /^settings\.confirmation_ttl\.set_(60|300)$/,
+  );
+
+  if (ttlMatch) {
+    return {
+      kind: 'ttl',
+      label: 'Confirmation TTL',
+      value: Number(ttlMatch[1]),
+    };
   }
 
   return null;

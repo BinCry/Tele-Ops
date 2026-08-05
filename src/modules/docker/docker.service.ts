@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SettingsService } from 'src/modules/settings/settings.service';
 import {
   DockerContainerSummary,
   DockerGateway,
@@ -26,6 +27,7 @@ export class DockerService {
   constructor(
     private readonly dockerGateway: DockerGateway,
     private readonly configService: ConfigService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async getOverview(): Promise<DockerOverview> {
@@ -68,11 +70,8 @@ export class DockerService {
     };
   }
 
-  getDangerousActionsEnabled(): boolean {
-    return this.configService.get<boolean>(
-      'security.dangerousActionsEnabled',
-      false,
-    );
+  async getDangerousActionsEnabled(): Promise<boolean> {
+    return this.settingsService.getDangerousActionsEnabled();
   }
 
   async getActionTargets(): Promise<DockerActionTarget[]> {
@@ -90,7 +89,7 @@ export class DockerService {
     containerShortId: string,
     action: DockerManagedAction,
   ): Promise<DockerActionTarget> {
-    if (!this.getDangerousActionsEnabled()) {
+    if (!(await this.getDangerousActionsEnabled())) {
       throw new Error('Dangerous Docker actions are disabled.');
     }
 
