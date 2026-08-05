@@ -37,3 +37,4 @@ Updated: 2026-08-05
 21. Backup artifact re-delivery is limited to the latest successful persisted backup and re-validates local file existence plus Telegram size limits before sending any file back to chat.
 22. First-pass user management prefers safe status transitions over free-form edits: unknown Telegram users self-register as `PENDING`, while admins and owners can only activate or disable managed accounts through confirmation tokens.
 23. Runtime safety toggles for dangerous Docker actions and confirmation TTL are stored in the `Setting` table so operators can adjust safeguards from Telegram without editing env files or restarting the app.
+24. Audit payloads are sanitized before persistence so sensitive fields such as confirmation tokens, API keys, passwords, and authorization headers are never stored in clear text.

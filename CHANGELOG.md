@@ -37,3 +37,4 @@
 - Added constrained resend of the latest successful backup artifact through Telegram, with file-exists and size-limit checks before delivery.
 - Added pending-user onboarding and Telegram confirmation flows for activating or disabling managed users.
 - Added persisted runtime `Settings` overrides plus Telegram confirmation flows for dangerous Docker actions and confirmation TTL updates.
+- Added audit-payload redaction for sensitive keys such as confirmation tokens, API keys, passwords, and authorization fields before persistence.

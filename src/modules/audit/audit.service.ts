@@ -23,6 +23,10 @@ export type RecentAuditEntry = {
   actorDisplayName: string | null;
 };
 
+const REDACTED_AUDIT_VALUE = '[REDACTED]';
+const SENSITIVE_AUDIT_KEY_PATTERN =
+  /(token|secret|password|authorization|cookie|credential|api[_-]?key)/i;
+
 @Injectable()
 export class AuditService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -40,7 +44,7 @@ export class AuditService {
     };
 
     if (entry.payloadJson !== undefined) {
-      data.payloadJson = entry.payloadJson;
+      data.payloadJson = sanitizeAuditPayload(entry.payloadJson);
     }
 
     await this.prismaService.auditLog.create({
@@ -72,4 +76,61 @@ export class AuditService {
       actorDisplayName: entry.actorUser?.displayName ?? null,
     }));
   }
+}
+
+function sanitizeAuditPayload(
+  payload: Prisma.InputJsonValue,
+): Prisma.InputJsonValue;
+function sanitizeAuditPayload(
+  payload: Prisma.InputJsonValue | null,
+): Prisma.InputJsonValue | null;
+function sanitizeAuditPayload(
+  payload: Prisma.InputJsonValue | null,
+): Prisma.InputJsonValue | null {
+  if (
+    payload === null ||
+    typeof payload === 'string' ||
+    typeof payload === 'number' ||
+    typeof payload === 'boolean'
+  ) {
+    return payload;
+  }
+
+  if (isJsonArray(payload)) {
+    return payload.map((item) => sanitizeAuditPayload(item));
+  }
+
+  if (!isJsonObject(payload)) {
+    return payload;
+  }
+
+  const sanitizedObject: Record<string, Prisma.InputJsonValue> = {};
+
+  for (const key in payload) {
+    const value = payload[key];
+
+    if (value === undefined) {
+      continue;
+    }
+
+    sanitizedObject[key] = SENSITIVE_AUDIT_KEY_PATTERN.test(key)
+      ? REDACTED_AUDIT_VALUE
+      : sanitizeAuditPayload(value);
+  }
+
+  return sanitizedObject;
+}
+
+function isJsonObject(
+  payload: Prisma.InputJsonValue,
+): payload is Record<string, Prisma.InputJsonValue> {
+  return (
+    typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+  );
+}
+
+function isJsonArray(
+  payload: Prisma.InputJsonValue,
+): payload is Prisma.InputJsonArray {
+  return Array.isArray(payload);
 }

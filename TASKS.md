@@ -38,7 +38,7 @@ Updated: 2026-08-05
 - [x] M7 Database status and backup.
 - [x] M8 Monitoring and alerts.
 - [x] M9 Users and settings.
-- [ ] M10 Audit UI and hardening.
+- [x] M10 Audit UI and hardening.
 - [ ] M11 Documentation and deployment guides.
 - [ ] M12 Final validation and deployment readiness.
 
@@ -62,7 +62,8 @@ Updated: 2026-08-05
 - [x] Finished backup artifact delivery and constrained resend of the latest successful backup artifact through Telegram.
 - [x] Added pending-user onboarding plus Telegram approval/disable management for access control.
 - [x] Added runtime `Settings` controls for dangerous Docker actions and confirmation TTL with persisted overrides plus Telegram confirmation tokens.
+- [x] Added audit payload redaction before persistence so confirmation tokens and similar sensitive fields are not stored in clear text.
+- [x] Completed the audit hardening baseline with Telegram audit browsing, logger redaction, payload sanitization, and graceful shutdown hooks.
 - [ ] Add queued execution and richer per-container drill-down for Docker mutations.
-- [ ] Add audit history browsing plus data-redaction and shutdown hardening.
 - [ ] Write deployment, rollback, backup, and incident runbooks under `docs/operations`.
 - [ ] Re-run Docker-based validation and capture a final readiness report once a Docker daemon is available.
