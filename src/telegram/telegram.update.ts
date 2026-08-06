@@ -428,14 +428,14 @@ export class TelegramUpdate {
         text: [
           '📊 <b>Dashboard</b>',
           '',
-          `Ứng dụng: <b>${dashboardSnapshot.appName}</b>`,
-          `Môi trường: <b>${dashboardSnapshot.environment}</b>`,
-          `Timezone: <b>${dashboardSnapshot.timezone}</b>`,
-          `Host: <b>${dashboardSnapshot.hostname}</b>`,
-          `CPU: <b>${formatPercent(dashboardSnapshot.cpuUsagePercent)}</b>`,
-          `RAM: <b>${formatPercent(dashboardSnapshot.memoryUsagePercent)}</b>`,
-          `Disk: <b>${formatPercent(dashboardSnapshot.diskUsagePercent)}</b>`,
-          `Uptime: <b>${formatDuration(dashboardSnapshot.uptimeSeconds)}</b>`,
+          `📦 Ứng dụng: <b>${dashboardSnapshot.appName}</b>`,
+          `🌍 Môi trường: <b>${dashboardSnapshot.environment}</b>`,
+          `🕒 Timezone: <b>${dashboardSnapshot.timezone}</b>`,
+          `🖥️ Host: <b>${dashboardSnapshot.hostname}</b>`,
+          `🧠 CPU: <b>${formatPercent(dashboardSnapshot.cpuUsagePercent)}</b>`,
+          `🧮 RAM: <b>${formatPercent(dashboardSnapshot.memoryUsagePercent)}</b>`,
+          `💽 Disk: <b>${formatPercent(dashboardSnapshot.diskUsagePercent)}</b>`,
+          `⏱️ Uptime: <b>${formatDuration(dashboardSnapshot.uptimeSeconds)}</b>`,
         ].join('\n'),
         keyboard:
           this.navigationService.buildFeaturePlaceholder(
@@ -827,13 +827,13 @@ export class TelegramUpdate {
         text: [
           '🖥 <b>Server</b>',
           '',
-          `Host: <b>${escapeHtml(serverSnapshot.hostname)}</b>`,
-          `Nền tảng: <b>${escapeHtml(serverSnapshot.platform)}</b>`,
-          `Hệ điều hành: <b>${escapeHtml(`${serverSnapshot.distro} ${serverSnapshot.release}`)}</b>`,
-          `Uptime: <b>${formatDuration(serverSnapshot.uptimeSeconds)}</b>`,
-          `CPU hiện tại: <b>${formatPercent(serverSnapshot.cpuUsagePercent)}</b>`,
-          `RAM: <b>${formatBytes(serverSnapshot.memoryUsedBytes)}</b> / <b>${formatBytes(serverSnapshot.memoryTotalBytes)}</b>`,
-          `Disk: <b>${formatBytes(serverSnapshot.diskUsedBytes)}</b> / <b>${formatBytes(serverSnapshot.diskTotalBytes)}</b>`,
+          `🖥️ Host: <b>${escapeHtml(serverSnapshot.hostname)}</b>`,
+          `🧱 Nền tảng: <b>${escapeHtml(serverSnapshot.platform)}</b>`,
+          `🐧 Hệ điều hành: <b>${escapeHtml(`${serverSnapshot.distro} ${serverSnapshot.release}`)}</b>`,
+          `⏱️ Uptime: <b>${formatDuration(serverSnapshot.uptimeSeconds)}</b>`,
+          `🧠 CPU hiện tại: <b>${formatPercent(serverSnapshot.cpuUsagePercent)}</b>`,
+          `🧮 RAM: <b>${formatBytes(serverSnapshot.memoryUsedBytes)}</b> / <b>${formatBytes(serverSnapshot.memoryTotalBytes)}</b>`,
+          `💽 Disk: <b>${formatBytes(serverSnapshot.diskUsedBytes)}</b> / <b>${formatBytes(serverSnapshot.diskTotalBytes)}</b>`,
         ].join('\n'),
         keyboard:
           this.navigationService.buildFeaturePlaceholder(

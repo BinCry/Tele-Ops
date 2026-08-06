@@ -287,6 +287,48 @@ describe('TelegramUpdate', () => {
     expect(editMessageTextMock).toHaveBeenCalled();
   });
 
+  it('renders the dashboard screen with emoji-prefixed metrics', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    dashboardService.getDashboardSnapshot.mockResolvedValue({
+      appName: 'TeleOps',
+      environment: 'production',
+      timezone: 'Asia/Ho_Chi_Minh',
+      hostname: 'teleops-prod',
+      cpuUsagePercent: 12.7,
+      memoryUsagePercent: 43,
+      diskUsagePercent: 27.3,
+      uptimeSeconds: 98765,
+    });
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.dashboard);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith('Đang mở Dashboard...');
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('📦 Ứng dụng: <b>TeleOps</b>'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('🧠 CPU: <b>12.7%</b>'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
   it('renders the database status screen for authorized users', async () => {
     const { context, answerCbQueryMock, editMessageTextMock } =
       createMockContext(123456789, 'callback');
@@ -350,6 +392,52 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('db:5432'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('renders the server screen with emoji-prefixed metrics', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    serverService.getServerSnapshot.mockResolvedValue({
+      hostname: 'c2cc20dabf7b',
+      platform: 'linux',
+      distro: 'Debian GNU/Linux',
+      release: '12',
+      uptimeSeconds: 98761,
+      cpuUsagePercent: 14.4,
+      memoryUsedBytes: 1.7 * 1024 * 1024 * 1024,
+      memoryTotalBytes: 3.8 * 1024 * 1024 * 1024,
+      diskUsedBytes: 24.1 * 1024 * 1024 * 1024,
+      diskTotalBytes: 88.4 * 1024 * 1024 * 1024,
+    });
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.server);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Đang tải thông tin server...',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('🧱 Nền tảng: <b>linux</b>'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('🐧 Hệ điều hành: <b>Debian GNU/Linux 12</b>'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),
