@@ -17,6 +17,11 @@ export const TELEGRAM_CALLBACKS = {
 export type TelegramCallback =
   (typeof TELEGRAM_CALLBACKS)[keyof typeof TELEGRAM_CALLBACKS];
 
+export type RefreshableTelegramCallback = Exclude<
+  TelegramCallback,
+  typeof TELEGRAM_CALLBACKS.refresh
+>;
+
 export type DockerActionCallbackPayload = {
   action: 'start' | 'stop' | 'restart';
   containerShortId: string;
@@ -46,6 +51,35 @@ const BACKUP_CREATE_CALLBACK = 'action:backup:create';
 const BACKUP_DOWNLOAD_LATEST_CALLBACK = 'action:backup:download-latest';
 const ACTION_CONFIRM_PREFIX = 'action:confirm';
 const ACTION_CANCEL_PREFIX = 'action:cancel';
+const REFRESH_CALLBACK_PREFIX = 'nav:refresh';
+
+export function buildRefreshCallback(
+  target: RefreshableTelegramCallback,
+): string {
+  return `${REFRESH_CALLBACK_PREFIX}:${target}`;
+}
+
+export function parseRefreshCallback(
+  value: string,
+): RefreshableTelegramCallback | null {
+  const match = value.match(/^nav:refresh:(nav:[a-z]+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const target = match[1] as TelegramCallback;
+
+  if (target === TELEGRAM_CALLBACKS.refresh) {
+    return null;
+  }
+
+  if (!Object.values(TELEGRAM_CALLBACKS).includes(target)) {
+    return null;
+  }
+
+  return target as RefreshableTelegramCallback;
+}
 
 export function buildDockerActionCallback(
   action: DockerActionCallbackPayload['action'],

@@ -15,7 +15,10 @@ import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
 import { SettingsService } from 'src/modules/settings/settings.service';
 import { UsersService } from 'src/modules/users/users.service';
-import { TELEGRAM_CALLBACKS } from './callbacks/callback-data';
+import {
+  buildRefreshCallback,
+  TELEGRAM_CALLBACKS,
+} from './callbacks/callback-data';
 import { TelegramBotContext } from './context/telegram-context';
 import { TelegramNavigationService } from './navigation/navigation.service';
 import { TelegramMenuRenderer } from './renderers/menu-renderer.service';
@@ -275,7 +278,10 @@ describe('TelegramUpdate', () => {
       },
     });
 
-    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.refresh);
+    await telegramUpdate.handleCallback(
+      context,
+      buildRefreshCallback(TELEGRAM_CALLBACKS.home),
+    );
 
     expect(answerCbQueryMock).toHaveBeenCalledWith('Đang làm mới Home...');
     expect(editMessageTextMock).toHaveBeenCalled();
@@ -305,6 +311,42 @@ describe('TelegramUpdate', () => {
 
     expect(answerCbQueryMock).toHaveBeenCalledWith(
       'Đang tải trạng thái database...',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('db:5432'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('refreshes the current database screen instead of returning home', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    backupService.getDatabaseStatus.mockResolvedValue({
+      host: 'db:5432',
+      databaseName: 'teleops',
+      reachable: true,
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      buildRefreshCallback(TELEGRAM_CALLBACKS.database),
+    );
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Äang lÃ m má»›i Database...',
     );
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('db:5432'),

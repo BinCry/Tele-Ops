@@ -7,6 +7,8 @@ import {
 import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import {
+  buildRefreshCallback,
+  RefreshableTelegramCallback,
   TELEGRAM_CALLBACKS,
   TelegramCallback,
 } from '../callbacks/callback-data';
@@ -105,7 +107,12 @@ export class TelegramNavigationService {
         'Chọn một khu vực để bắt đầu quản trị VPS và dịch vụ.',
       ].join('\n'),
       keyboard: buildKeyboard(buttons, [
-        [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+        [
+          {
+            text: '🔄 Làm mới',
+            callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.home),
+          },
+        ],
       ]),
     };
   }
@@ -121,12 +128,22 @@ export class TelegramNavigationService {
       ].join('\n'),
       keyboard: buildKeyboard(
         [],
-        [[{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }]],
+        [
+          [
+            {
+              text: '🔄 Làm mới',
+              callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.home),
+            },
+          ],
+        ],
       ),
     };
   }
 
-  buildFeaturePlaceholder(featureLabel: string): TelegramScreen {
+  buildFeaturePlaceholder(
+    featureLabel: string,
+    refreshTarget: RefreshableTelegramCallback,
+  ): TelegramScreen {
     return {
       text: [
         '🛠 <b>Đang xây dựng</b>',
@@ -138,7 +155,12 @@ export class TelegramNavigationService {
         [],
         [
           [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-          [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+          [
+            {
+              text: '🔄 Làm mới',
+              callback_data: buildRefreshCallback(refreshTarget),
+            },
+          ],
         ],
       ),
     };

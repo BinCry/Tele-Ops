@@ -35,6 +35,7 @@ import {
   buildDeployRollbackCallback,
   buildDeployRunCallback,
   buildDockerActionCallback,
+  buildRefreshCallback,
   buildSettingsDangerousActionCallback,
   buildSettingsTtlActionCallback,
   buildUserStatusActionCallback,
@@ -45,6 +46,7 @@ import {
   parseDeployRollbackCallback,
   parseDeployRunCallback,
   parseDockerActionCallback,
+  parseRefreshCallback,
   parseSettingsActionCallback,
   parseUserStatusActionCallback,
   SettingsActionCallbackPayload,
@@ -191,9 +193,10 @@ export class TelegramUpdate {
     const deployRollbackTargetName = parseDeployRollbackCallback(callbackData);
     const confirmToken = parseActionConfirmCallback(callbackData);
     const cancelToken = parseActionCancelCallback(callbackData);
-    const navigationCallback = this.isNavigationCallback(callbackData)
-      ? callbackData
-      : null;
+    const refreshTargetCallback = parseRefreshCallback(callbackData);
+    const navigationCallback =
+      refreshTargetCallback ??
+      (this.isNavigationCallback(callbackData) ? callbackData : null);
 
     if (
       !navigationCallback &&
@@ -261,10 +264,7 @@ export class TelegramUpdate {
       return;
     }
 
-    if (
-      navigationCallback === TELEGRAM_CALLBACKS.home ||
-      navigationCallback === TELEGRAM_CALLBACKS.refresh
-    ) {
+    if (navigationCallback === TELEGRAM_CALLBACKS.home) {
       await context.answerCbQuery('Đang làm mới Home...');
       await this.auditService.record({
         actorUserId: authorizationResult.user.id,
@@ -282,6 +282,25 @@ export class TelegramUpdate {
         }),
       );
       return;
+    }
+
+    if (refreshTargetCallback) {
+      const featureLabel =
+        FEATURE_LABELS[refreshTargetCallback] ??
+        FEATURE_LABELS[TELEGRAM_CALLBACKS.home];
+
+      await context.answerCbQuery(`Äang lÃ m má»›i ${featureLabel}...`);
+      await this.auditService.record({
+        actorUserId: authorizationResult.user.id,
+        action: 'telegram.refresh',
+        resourceType: 'telegram_callback',
+        resourceId: callbackData,
+        requestId: String(context.update.update_id ?? ''),
+        payloadJson: {
+          target: refreshTargetCallback,
+        },
+        result: AuditResult.SUCCESS,
+      });
     }
 
     if (backupCreateRequested) {
@@ -419,7 +438,10 @@ export class TelegramUpdate {
           `Uptime: <b>${formatDuration(dashboardSnapshot.uptimeSeconds)}</b>`,
         ].join('\n'),
         keyboard:
-          this.navigationService.buildFeaturePlaceholder('Dashboard').keyboard,
+          this.navigationService.buildFeaturePlaceholder(
+            'Dashboard',
+            TELEGRAM_CALLBACKS.dashboard,
+          ).keyboard,
       });
       return;
     }
@@ -450,7 +472,10 @@ export class TelegramUpdate {
             : []),
         ].join('\n'),
         keyboard:
-          this.navigationService.buildFeaturePlaceholder('Database').keyboard,
+          this.navigationService.buildFeaturePlaceholder(
+            'Database',
+            TELEGRAM_CALLBACKS.database,
+          ).keyboard,
       });
       return;
     }
@@ -503,7 +528,12 @@ export class TelegramUpdate {
             : [],
           [
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+            [
+              {
+                text: '🔄 Làm mới',
+                callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.deploy),
+              },
+            ],
           ],
         ),
       });
@@ -574,7 +604,12 @@ export class TelegramUpdate {
             : [],
           [
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+            [
+              {
+                text: '🔄 Làm mới',
+                callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.backup),
+              },
+            ],
           ],
         ),
       });
@@ -645,7 +680,14 @@ export class TelegramUpdate {
           [],
           [
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+            [
+              {
+                text: '🔄 Làm mới',
+                callback_data: buildRefreshCallback(
+                  TELEGRAM_CALLBACKS.monitoring,
+                ),
+              },
+            ],
           ],
         ),
       });
@@ -710,7 +752,7 @@ export class TelegramUpdate {
               [
                 {
                   text: '🔄 Làm mới',
-                  callback_data: TELEGRAM_CALLBACKS.refresh,
+                  callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.docker),
                 },
               ],
             ],
@@ -755,7 +797,10 @@ export class TelegramUpdate {
                 'Chưa có container phù hợp để hiển thị log.',
               ].join('\n'),
           keyboard:
-            this.navigationService.buildFeaturePlaceholder('Logs').keyboard,
+            this.navigationService.buildFeaturePlaceholder(
+              'Logs',
+              TELEGRAM_CALLBACKS.logs,
+            ).keyboard,
         });
       } catch (error) {
         await context.answerCbQuery('Không thể đọc logs từ Docker daemon.', {
@@ -791,7 +836,10 @@ export class TelegramUpdate {
           `Disk: <b>${formatBytes(serverSnapshot.diskUsedBytes)}</b> / <b>${formatBytes(serverSnapshot.diskTotalBytes)}</b>`,
         ].join('\n'),
         keyboard:
-          this.navigationService.buildFeaturePlaceholder('Server').keyboard,
+          this.navigationService.buildFeaturePlaceholder(
+            'Server',
+            TELEGRAM_CALLBACKS.server,
+          ).keyboard,
       });
       return;
     }
@@ -855,7 +903,12 @@ export class TelegramUpdate {
             : [],
           [
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+            [
+              {
+                text: '🔄 Làm mới',
+                callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.users),
+              },
+            ],
           ],
         ),
       });
@@ -920,7 +973,12 @@ export class TelegramUpdate {
             : [],
           [
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-            [{ text: '🔄 Làm mới', callback_data: TELEGRAM_CALLBACKS.refresh }],
+            [
+              {
+                text: '🔄 Làm mới',
+                callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.settings),
+              },
+            ],
           ],
         ),
       });
@@ -951,7 +1009,10 @@ export class TelegramUpdate {
             : ['Chưa có bản ghi audit nào.']),
         ].join('\n'),
         keyboard:
-          this.navigationService.buildFeaturePlaceholder('Audit').keyboard,
+          this.navigationService.buildFeaturePlaceholder(
+            'Audit',
+            TELEGRAM_CALLBACKS.audit,
+          ).keyboard,
       });
       return;
     }
@@ -972,6 +1033,9 @@ export class TelegramUpdate {
       context,
       this.navigationService.buildFeaturePlaceholder(
         FEATURE_LABELS[navigationCallback],
+        navigationCallback === TELEGRAM_CALLBACKS.refresh
+          ? TELEGRAM_CALLBACKS.home
+          : navigationCallback,
       ),
     );
   }
