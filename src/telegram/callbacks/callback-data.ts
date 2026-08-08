@@ -32,6 +32,10 @@ export type UserStatusActionCallbackPayload = {
   targetTelegramUserId: string;
 };
 
+export type LogsViewCallbackPayload = {
+  containerShortId: string;
+};
+
 export type SettingsActionCallbackPayload =
   | {
       category: 'dangerous';
@@ -44,6 +48,7 @@ export type SettingsActionCallbackPayload =
 
 const DOCKER_ACTION_PREFIX = 'action:docker';
 const USER_STATUS_ACTION_PREFIX = 'action:user';
+const LOGS_VIEW_PREFIX = 'action:logs:view';
 const SETTINGS_ACTION_PREFIX = 'action:settings';
 const DEPLOY_RUN_PREFIX = 'action:deploy:run';
 const DEPLOY_ROLLBACK_PREFIX = 'action:deploy:rollback';
@@ -110,6 +115,24 @@ export function buildUserStatusActionCallback(
   targetTelegramUserId: string,
 ): string {
   return `${USER_STATUS_ACTION_PREFIX}:${action}:${targetTelegramUserId}`;
+}
+
+export function buildLogsViewCallback(containerShortId: string): string {
+  return `${LOGS_VIEW_PREFIX}:${containerShortId}`;
+}
+
+export function parseLogsViewCallback(
+  value: string,
+): LogsViewCallbackPayload | null {
+  const match = value.match(/^action:logs:view:([a-zA-Z0-9]{1,12})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    containerShortId: match[1] ?? '',
+  };
 }
 
 export function parseUserStatusActionCallback(

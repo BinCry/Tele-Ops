@@ -121,4 +121,35 @@ describe('DockerService', () => {
       }),
     );
   });
+
+  it('returns logs for a selected container by short id', async () => {
+    const gateway = {
+      listContainers: jest.fn().mockResolvedValue([
+        {
+          id: '1234567890abcdef',
+          name: 'teleops-app',
+          image: 'teleops:latest',
+          state: 'running',
+          status: 'Up 5m',
+        },
+      ]),
+      getRecentLogs: jest
+        .fn()
+        .mockResolvedValue(['line 1', 'line 2', 'line 3', 'line 4']),
+    } as unknown as DockerGateway;
+
+    const configService = {
+      get: jest.fn(() => []),
+    } as unknown as ConfigService;
+
+    const service = new DockerService(gateway, configService, {
+      getDangerousActionsEnabled: jest.fn().mockResolvedValue(true),
+    } as unknown as SettingsService);
+
+    await expect(service.getRecentLogs('1234567890ab')).resolves.toEqual({
+      containerShortId: '1234567890ab',
+      containerName: 'teleops-app',
+      lines: ['line 1', 'line 2', 'line 3', 'line 4'],
+    });
+  });
 });

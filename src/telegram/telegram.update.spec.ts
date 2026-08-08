@@ -94,6 +94,7 @@ describe('TelegramUpdate', () => {
   let dockerService: {
     getOverview: jest.Mock;
     getRecentLogs: jest.Mock;
+    getLogTargets: jest.Mock;
     getDangerousActionsEnabled: jest.Mock;
     getActionTargets: jest.Mock;
     findActionTarget: jest.Mock;
@@ -158,6 +159,7 @@ describe('TelegramUpdate', () => {
     dockerService = {
       getOverview: jest.fn(),
       getRecentLogs: jest.fn(),
+      getLogTargets: jest.fn(),
       getDangerousActionsEnabled: jest.fn().mockResolvedValue(false),
       getActionTargets: jest.fn(),
       findActionTarget: jest.fn(),
@@ -467,6 +469,60 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).not.toHaveBeenCalled();
     expect(dockerService.getOverview).not.toHaveBeenCalled();
+  });
+
+  it('renders the logs screen with per-container shortcuts', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'user-1',
+        telegramUserId: '123456789',
+        displayName: 'Operator User',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    dockerService.getLogTargets.mockResolvedValue([
+      {
+        id: '1234567890abcdef',
+        shortId: '1234567890ab',
+        name: 'teleops-app',
+        image: 'teleops:latest',
+        state: 'running',
+        status: 'Up 5m (healthy)',
+      },
+    ]);
+    dockerService.getRecentLogs.mockResolvedValue({
+      containerShortId: '1234567890ab',
+      containerName: 'teleops-app',
+      lines: ['line 1', 'line 2'],
+    });
+
+    await telegramUpdate.handleCallback(context, TELEGRAM_CALLBACKS.logs);
+
+    expect(answerCbQueryMock).toHaveBeenCalledWith('Đang tải logs...');
+    const firstCall = editMessageTextMock.mock.calls.at(0) as
+      | [
+          string,
+          {
+            parse_mode: string;
+            reply_markup: {
+              inline_keyboard: Array<Array<{ callback_data?: string }>>;
+            };
+          },
+        ]
+      | undefined;
+
+    expect(firstCall?.[0]).toContain('teleops-app');
+    expect(firstCall?.[0]).toContain('1234567890ab');
+    expect(firstCall?.[1].reply_markup.inline_keyboard.flat()).toContainEqual(
+      expect.objectContaining({
+        callback_data: 'action:logs:view:1234567890ab',
+      }),
+    );
   });
 
   it('creates a confirmation flow for docker restart requests', async () => {

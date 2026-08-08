@@ -35,6 +35,7 @@ import {
   buildDeployRollbackCallback,
   buildDeployRunCallback,
   buildDockerActionCallback,
+  buildLogsViewCallback,
   buildRefreshCallback,
   buildSettingsDangerousActionCallback,
   buildSettingsTtlActionCallback,
@@ -46,6 +47,7 @@ import {
   parseDeployRollbackCallback,
   parseDeployRunCallback,
   parseDockerActionCallback,
+  parseLogsViewCallback,
   parseRefreshCallback,
   parseSettingsActionCallback,
   parseUserStatusActionCallback,
@@ -186,6 +188,7 @@ export class TelegramUpdate {
     const dockerActionPayload = parseDockerActionCallback(callbackData);
     const settingsActionPayload = parseSettingsActionCallback(callbackData);
     const userStatusActionPayload = parseUserStatusActionCallback(callbackData);
+    const logsViewPayload = parseLogsViewCallback(callbackData);
     const backupCreateRequested = isBackupCreateCallback(callbackData);
     const backupDownloadLatestRequested =
       isBackupDownloadLatestCallback(callbackData);
@@ -203,6 +206,7 @@ export class TelegramUpdate {
       !dockerActionPayload &&
       !settingsActionPayload &&
       !userStatusActionPayload &&
+      !logsViewPayload &&
       !backupCreateRequested &&
       !backupDownloadLatestRequested &&
       !deployRunTargetName &&
@@ -328,6 +332,16 @@ export class TelegramUpdate {
         authorizationResult.user.role,
         userStatusActionPayload.action,
         userStatusActionPayload.targetTelegramUserId,
+      );
+      return;
+    }
+
+    if (logsViewPayload) {
+      await this.handleLogsViewRequest(
+        context,
+        authorizationResult.user.id,
+        authorizationResult.user.role,
+        logsViewPayload.containerShortId,
       );
       return;
     }
@@ -790,7 +804,13 @@ export class TelegramUpdate {
 
     if (navigationCallback === TELEGRAM_CALLBACKS.logs) {
       try {
-        const logsSnapshot = await this.dockerService.getRecentLogs();
+        const logTargets = await this.dockerService.getLogTargets();
+        const defaultTarget = logTargets.find(
+          (target) => target.state === 'running',
+        );
+        const logsSnapshot = await this.dockerService.getRecentLogs(
+          defaultTarget?.shortId,
+        );
 
         await context.answerCbQuery('Đang tải logs...');
         await this.auditService.record({
@@ -807,6 +827,7 @@ export class TelegramUpdate {
                 '📄 <b>Logs gần nhất</b>',
                 '',
                 `Container: <b>${escapeHtml(logsSnapshot.containerName)}</b>`,
+                `Mã ngắn: <code>${escapeHtml(logsSnapshot.containerShortId)}</code>`,
                 '',
                 '<pre>',
                 escapeHtml(logsSnapshot.lines.join('\n')),
@@ -818,10 +839,24 @@ export class TelegramUpdate {
                 'Chưa có container phù hợp để hiển thị log.',
               ].join('\n'),
           keyboard:
-            this.navigationService.buildFeaturePlaceholder(
-              'Logs',
-              TELEGRAM_CALLBACKS.logs,
-            ).keyboard,
+            buildKeyboard(
+              [],
+              [
+                ...logTargets.map((target) => [
+                  {
+                    text: `📄 ${truncateInlineLabel(target.name, 24)}`,
+                    callback_data: buildLogsViewCallback(target.shortId),
+                  },
+                ]),
+                [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+                [
+                  {
+                    text: '🔄 Làm mới',
+                    callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.logs),
+                  },
+                ],
+              ],
+            ),
         });
       } catch (error) {
         await context.answerCbQuery('Không thể đọc logs từ Docker daemon.', {
@@ -1985,6 +2020,75 @@ export class TelegramUpdate {
       });
       return false;
     }
+  }
+
+  private async handleLogsViewRequest(
+    context: TelegramBotContext,
+    actorUserId: string,
+    role: UserRole,
+    containerShortId: string,
+  ): Promise<void> {
+    if (!this.rbacService.hasPermission(role, PERMISSIONS.logsView)) {
+      await context.answerCbQuery(
+        'Bạn không có quyền thực hiện thao tác này.',
+        {
+          show_alert: true,
+        },
+      );
+      return;
+    }
+
+    const logTargets = await this.dockerService.getLogTargets();
+    const logsSnapshot = await this.dockerService.getRecentLogs(containerShortId);
+
+    if (!logsSnapshot) {
+      await context.answerCbQuery('Không tìm thấy container để xem logs.', {
+        show_alert: true,
+      });
+      return;
+    }
+
+    await this.auditService.record({
+      actorUserId,
+      action: 'telegram.logs.view',
+      resourceType: 'docker_container',
+      resourceId: logsSnapshot.containerName,
+      payloadJson: {
+        containerShortId: logsSnapshot.containerShortId,
+      },
+      result: AuditResult.SUCCESS,
+    });
+    await context.answerCbQuery('Đang tải logs container...');
+    await this.menuRenderer.renderScreen(context, {
+      text: [
+        '📄 <b>Logs gần nhất</b>',
+        '',
+        `Container: <b>${escapeHtml(logsSnapshot.containerName)}</b>`,
+        `Mã ngắn: <code>${escapeHtml(logsSnapshot.containerShortId)}</code>`,
+        '',
+        '<pre>',
+        escapeHtml(logsSnapshot.lines.join('\n')),
+        '</pre>',
+      ].join('\n'),
+      keyboard: buildKeyboard(
+        [],
+        [
+          ...logTargets.map((target) => [
+            {
+              text: `📄 ${truncateInlineLabel(target.name, 24)}`,
+              callback_data: buildLogsViewCallback(target.shortId),
+            },
+          ]),
+          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+          [
+            {
+              text: '🔄 Làm mới',
+              callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.logs),
+            },
+          ],
+        ],
+      ),
+    });
   }
 }
 

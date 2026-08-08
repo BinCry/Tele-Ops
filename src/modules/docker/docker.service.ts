@@ -13,6 +13,7 @@ export type DockerOverview = {
 };
 
 export type DockerLogsSnapshot = {
+  containerShortId: string;
   containerName: string;
   lines: string[];
 };
@@ -20,6 +21,10 @@ export type DockerLogsSnapshot = {
 export type DockerActionTarget = DockerContainerSummary & {
   shortId: string;
   availableActions: DockerManagedAction[];
+};
+
+export type DockerLogTarget = DockerContainerSummary & {
+  shortId: string;
 };
 
 @Injectable()
@@ -52,11 +57,16 @@ export class DockerService {
     };
   }
 
-  async getRecentLogs(): Promise<DockerLogsSnapshot | null> {
+  async getRecentLogs(
+    containerShortId?: string,
+  ): Promise<DockerLogsSnapshot | null> {
     const overview = await this.getOverview();
-    const preferredContainer =
-      overview.containers.find((container) => container.state === 'running') ??
-      overview.containers[0];
+    const preferredContainer = containerShortId
+      ? overview.containers.find(
+          (container) => container.id.slice(0, 12) === containerShortId,
+        )
+      : overview.containers.find((container) => container.state === 'running') ??
+        overview.containers[0];
 
     if (!preferredContainer) {
       return null;
@@ -65,9 +75,19 @@ export class DockerService {
     const lines = await this.dockerGateway.getRecentLogs(preferredContainer.id);
 
     return {
+      containerShortId: preferredContainer.id.slice(0, 12),
       containerName: preferredContainer.name,
       lines: lines.slice(-20),
     };
+  }
+
+  async getLogTargets(): Promise<DockerLogTarget[]> {
+    const overview = await this.getOverview();
+
+    return overview.containers.map((container) => ({
+      ...container,
+      shortId: container.id.slice(0, 12),
+    }));
   }
 
   async getDangerousActionsEnabled(): Promise<boolean> {
