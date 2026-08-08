@@ -556,27 +556,27 @@ export class TelegramUpdate {
         text: [
           '💾 <b>Backup</b>',
           '',
-          `Bật backup DB: <b>${backupSnapshot.enabled ? 'Có' : 'Không'}</b>`,
-          `Thư mục backup: <code>${escapeHtml(backupSnapshot.backupDirectory)}</code>`,
-          `Truy cập thư mục: <b>${backupSnapshot.directoryAccessible ? '🟢 OK' : '🔴 Không khả dụng'}</b>`,
-          `pg_dump: <b>${backupSnapshot.pgDumpAvailable ? '🟢 Sẵn sàng' : '🔴 Chưa tìm thấy'}</b>`,
+          `⚙️ Bật backup DB: <b>${backupSnapshot.enabled ? 'Có' : 'Không'}</b>`,
+          `📂 Thư mục backup: <code>${escapeHtml(backupSnapshot.backupDirectory)}</code>`,
+          `🔐 Truy cập thư mục: <b>${backupSnapshot.directoryAccessible ? '🟢 OK' : '🔴 Không khả dụng'}</b>`,
+          `🐘 pg_dump: <b>${backupSnapshot.pgDumpAvailable ? '🟢 Sẵn sàng' : '🔴 Chưa tìm thấy'}</b>`,
           ...(backupSnapshot.pgDumpVersion
             ? [
-                `Phiên bản pg_dump: <code>${escapeHtml(backupSnapshot.pgDumpVersion)}</code>`,
+                `🏷️ Phiên bản pg_dump: <code>${escapeHtml(backupSnapshot.pgDumpVersion)}</code>`,
               ]
             : []),
-          `Giới hạn gửi Telegram: <b>${backupSnapshot.maxTelegramSizeMb} MB</b>`,
+          `📏 Giới hạn gửi Telegram: <b>${backupSnapshot.maxTelegramSizeMb} MB</b>`,
           '',
           ...(backupSnapshot.latestBackup
             ? [
-                'Lần backup gần nhất:',
-                `File: <code>${escapeHtml(backupSnapshot.latestBackup.filename)}</code>`,
-                `Trạng thái: <b>${backupSnapshot.latestBackup.status}</b>`,
-                `Kích thước: <b>${formatBigIntBytes(backupSnapshot.latestBackup.sizeBytes)}</b>`,
-                `Hoàn tất: <b>${backupSnapshot.latestBackup.finishedAt ? backupSnapshot.latestBackup.finishedAt.toISOString() : 'Chưa xong'}</b>`,
+                '🕰️ Lần backup gần nhất:',
+                `📄 File: <code>${escapeHtml(backupSnapshot.latestBackup.filename)}</code>`,
+                `📊 Trạng thái: <b>${backupSnapshot.latestBackup.status}</b>`,
+                `⚖️ Kích thước: <b>${formatBigIntBytes(backupSnapshot.latestBackup.sizeBytes)}</b>`,
+                `✅ Hoàn tất: <b>${backupSnapshot.latestBackup.finishedAt ? backupSnapshot.latestBackup.finishedAt.toISOString() : 'Chưa xong'}</b>`,
                 ...(backupSnapshot.latestBackup.errorMessage
                   ? [
-                      `Lỗi: <code>${escapeHtml(backupSnapshot.latestBackup.errorMessage)}</code>`,
+                      `❌ Lỗi: <code>${escapeHtml(backupSnapshot.latestBackup.errorMessage)}</code>`,
                     ]
                   : []),
               ]
@@ -2005,8 +2005,8 @@ function buildBackupSuccessScreen(
     text: [
       '✅ <b>Tạo backup thành công</b>',
       '',
-      `File: <code>${escapeHtml(backupResult.filename)}</code>`,
-      `Kích thước: <b>${formatBigIntBytes(backupResult.sizeBytes)}</b>`,
+      `📄 File: <code>${escapeHtml(backupResult.filename)}</code>`,
+      `⚖️ Kích thước: <b>${formatBigIntBytes(backupResult.sizeBytes)}</b>`,
       `SHA-256: <code>${escapeHtml(backupResult.checksumSha256)}</code>`,
       deliveryDecision.eligible
         ? 'Telegram: <b>Sẽ gửi file backup ở tin nhắn kế tiếp</b>'
