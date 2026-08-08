@@ -1207,7 +1207,9 @@ export class TelegramUpdate {
       return;
     }
 
-    await context.answerCbQuery('Tính năng đang được triển khai.');
+    await context.answerCbQuery('Không tìm thấy màn hình phù hợp.', {
+      show_alert: true,
+    });
     await this.auditService.record({
       actorUserId: authorizationResult.user.id,
       action: 'telegram.callback',
@@ -1221,12 +1223,10 @@ export class TelegramUpdate {
     });
     await this.menuRenderer.renderScreen(
       context,
-      this.navigationService.buildFeaturePlaceholder(
-        FEATURE_LABELS[navigationCallback],
-        navigationCallback === TELEGRAM_CALLBACKS.refresh
-          ? TELEGRAM_CALLBACKS.home
-          : navigationCallback,
-      ),
+      this.navigationService.buildHomeScreen({
+        displayName: authorizationResult.user.displayName,
+        role: authorizationResult.user.role,
+      }),
     );
   }
 
