@@ -81,7 +81,11 @@ export class DockerService {
       ...container,
       shortId: container.id.slice(0, 12),
       availableActions:
-        container.state === 'running' ? ['restart', 'stop'] : ['start'],
+        container.state === 'running'
+          ? ['restart', 'stop']
+          : container.state === 'exited' || container.state === 'created'
+            ? ['start', 'remove']
+            : ['remove'],
     }));
   }
 
@@ -110,6 +114,9 @@ export class DockerService {
         break;
       case 'restart':
         await this.dockerGateway.restartContainer(target.id);
+        break;
+      case 'remove':
+        await this.dockerGateway.removeContainer(target.id);
         break;
     }
 

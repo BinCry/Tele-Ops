@@ -10,7 +10,7 @@ export type DockerContainerSummary = {
   status: string;
 };
 
-export type DockerManagedAction = 'start' | 'stop' | 'restart';
+export type DockerManagedAction = 'start' | 'stop' | 'restart' | 'remove';
 
 @Injectable()
 export class DockerGateway {
@@ -71,6 +71,14 @@ export class DockerGateway {
     const container = this.client.getContainer(containerId);
     await container.restart({
       t: 10,
+    });
+  }
+
+  async removeContainer(containerId: string): Promise<void> {
+    const container = this.client.getContainer(containerId);
+    await container.remove({
+      force: false,
+      v: true,
     });
   }
 }

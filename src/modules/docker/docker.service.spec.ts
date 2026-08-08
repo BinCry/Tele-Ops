@@ -83,4 +83,42 @@ describe('DockerService', () => {
       }),
     );
   });
+
+  it('allows removing an exited container when dangerous actions are enabled', async () => {
+    const gateway = {
+      listContainers: jest.fn().mockResolvedValue([
+        {
+          id: 'abcdef123456',
+          name: 'teleops-old',
+          image: 'teleops:old',
+          state: 'exited',
+          status: 'Exited (0) 2 hours ago',
+        },
+      ]),
+      removeContainer: jest.fn().mockResolvedValue(undefined),
+    } as unknown as DockerGateway;
+
+    const configService = {
+      get: jest.fn((key: string) => {
+        if (key === 'allowlists.containers') {
+          return [];
+        }
+
+        return [];
+      }),
+    } as unknown as ConfigService;
+
+    const service = new DockerService(gateway, configService, {
+      getDangerousActionsEnabled: jest.fn().mockResolvedValue(true),
+    } as unknown as SettingsService);
+
+    await expect(
+      service.executeAction('abcdef123456', 'remove'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        name: 'teleops-old',
+        shortId: 'abcdef123456',
+      }),
+    );
+  });
 });

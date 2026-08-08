@@ -752,18 +752,23 @@ export class TelegramUpdate {
               : 'Dangerous Docker actions đang bị tắt trong cấu hình.',
           ].join('\n'),
           keyboard: buildKeyboard(
-            dangerousActionsEnabled && canManageDocker
-              ? actionTargets.flatMap((target) =>
-                  target.availableActions.map((action) => ({
-                    text: `${getDockerActionEmoji(action)} ${target.name}`,
-                    callback_data: buildDockerActionCallback(
-                      action,
-                      target.shortId,
-                    ),
-                  })),
-                )
-              : [],
+            [],
             [
+              ...(
+                dangerousActionsEnabled && canManageDocker
+                  ? actionTargets.flatMap((target) =>
+                      target.availableActions.map((action) => [
+                        {
+                          text: `${getDockerActionEmoji(action)} ${truncateInlineLabel(target.name, 24)}`,
+                          callback_data: buildDockerActionCallback(
+                            action,
+                            target.shortId,
+                          ),
+                        },
+                      ]),
+                    )
+                  : []
+              ),
               [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
               [
                 {
@@ -1064,7 +1069,7 @@ export class TelegramUpdate {
     context: TelegramBotContext,
     actorUserId: string,
     role: UserRole,
-    action: 'start' | 'stop' | 'restart',
+    action: 'start' | 'stop' | 'restart' | 'remove',
     containerShortId: string,
   ): Promise<void> {
     if (!this.rbacService.hasPermission(role, PERMISSIONS.dockerManage)) {
@@ -1984,7 +1989,7 @@ export class TelegramUpdate {
 }
 
 function buildDockerSuccessScreen(
-  action: 'start' | 'stop' | 'restart',
+  action: 'start' | 'stop' | 'restart' | 'remove',
   containerName: string,
 ): {
   text: string;
@@ -2311,9 +2316,11 @@ function mapActionResolutionMessage(
 
 function parseDockerManagedAction(
   actionType: string,
-): 'start' | 'stop' | 'restart' | null {
-  const match = actionType.match(/^docker\.(start|stop|restart)$/);
-  return (match?.[1] as 'start' | 'stop' | 'restart' | undefined) ?? null;
+): 'start' | 'stop' | 'restart' | 'remove' | null {
+  const match = actionType.match(/^docker\.(start|stop|restart|remove)$/);
+  return (
+    match?.[1] as 'start' | 'stop' | 'restart' | 'remove' | undefined
+  ) ?? null;
 }
 
 function getPermissionForActionType(actionType: string): Permission | null {
@@ -2355,7 +2362,9 @@ function formatMonitoringStatus(
   }
 }
 
-function getDockerActionEmoji(action: 'start' | 'stop' | 'restart'): string {
+function getDockerActionEmoji(
+  action: 'start' | 'stop' | 'restart' | 'remove',
+): string {
   switch (action) {
     case 'start':
       return '▶️';
@@ -2363,6 +2372,8 @@ function getDockerActionEmoji(action: 'start' | 'stop' | 'restart'): string {
       return '⏹';
     case 'restart':
       return '🔄';
+    case 'remove':
+      return '🗑️';
   }
 }
 

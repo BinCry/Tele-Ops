@@ -23,7 +23,7 @@ export type RefreshableTelegramCallback = Exclude<
 >;
 
 export type DockerActionCallbackPayload = {
-  action: 'start' | 'stop' | 'restart';
+  action: 'start' | 'stop' | 'restart' | 'remove';
   containerShortId: string;
 };
 
@@ -92,7 +92,7 @@ export function parseDockerActionCallback(
   value: string,
 ): DockerActionCallbackPayload | null {
   const match = value.match(
-    /^action:docker:(start|stop|restart):([a-zA-Z0-9]{1,12})$/,
+    /^action:docker:(start|stop|restart|remove):([a-zA-Z0-9]{1,12})$/,
   );
 
   if (!match) {
