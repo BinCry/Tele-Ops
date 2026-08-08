@@ -496,10 +496,10 @@ export class TelegramUpdate {
         text: [
           '🚀 <b>Deploy</b>',
           '',
-          `File cấu hình: <code>${escapeHtml(deployOverview.configPath)}</code>`,
-          `Trạng thái file: <b>${deployOverview.fileExists ? '🟢 Tìm thấy' : '🔴 Chưa có file'}</b>`,
-          `Targets bật: <b>${deployOverview.enabledTargetCount}</b>`,
-          `Targets tắt: <b>${deployOverview.disabledTargetCount}</b>`,
+          `📄 File cấu hình: <code>${escapeHtml(deployOverview.configPath)}</code>`,
+          `📝 Trạng thái file: <b>${deployOverview.fileExists ? '🟢 Tìm thấy' : '🔴 Chưa có file'}</b>`,
+          `🟢 Targets bật: <b>${deployOverview.enabledTargetCount}</b>`,
+          `🔴 Targets tắt: <b>${deployOverview.disabledTargetCount}</b>`,
           '',
           ...(deployOverview.targets.length > 0
             ? deployOverview.targets.map(
