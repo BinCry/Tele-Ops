@@ -1,6 +1,6 @@
 # TeleOps
 
-TeleOps is a Telegram-based operations bot for managing services running on a VPS. It is being built with NestJS, TypeScript, PostgreSQL, Redis, and Docker-oriented safety controls.
+TeleOps is a Telegram-based operations bot for managing services running on a VPS with NestJS, TypeScript, PostgreSQL, Redis, and Docker-oriented safety controls.
 
 ### 🛠️ Tech Stack
 
@@ -18,8 +18,9 @@ TeleOps is a Telegram-based operations bot for managing services running on a VP
 ## Current Status
 
 - Milestones 0 through 12 are complete and pushed in staged slices.
-- Current capabilities: Telegram auth/RBAC, audit trail, rate limiting, dashboard/server visibility, Docker visibility plus confirmed mutations, PostgreSQL status/backup execution with direct Telegram artifact delivery when size permits plus constrained resend of the latest successful artifact, deploy target execution plus confirmed rollback with active-run guard and post-action health validation, live monitoring overview from health targets, alert rule evaluation with persisted lifecycle plus background polling and optional Telegram notifications, Telegram-based pending-user activation or disable flows for access control, runtime settings overrides for dangerous Docker actions plus confirmation TTL from the Telegram `Settings` screen, audit-payload redaction, production image startup migrations, and `TELEGRAM_MODE=disabled` for smoke validation.
+- Current capabilities: Telegram auth/RBAC, audit trail, rate limiting, dashboard/server visibility, Docker visibility plus confirmed start/stop/restart/remove actions, per-container log inspection, PostgreSQL status/backup execution with direct Telegram artifact delivery when size permits plus constrained resend of the latest successful artifact, deploy target execution plus confirmed rollback with active-run guard and post-action health validation, live monitoring overview from health targets, alert rule evaluation with persisted lifecycle plus background polling and optional Telegram notifications, Telegram-based pending-user activation or disable flows for access control, confirmed `/adduser` and `/setrole` flows for manual user provisioning, runtime settings overrides for dangerous Docker actions plus confirmation TTL from the Telegram `Settings` screen, audit-payload redaction, production image startup migrations, and `TELEGRAM_MODE=disabled` for smoke validation.
 - Deploy-ready validation completed on Wednesday, August 5, 2026 with `pnpm lint`, `pnpm typecheck`, `pnpm test -- --runInBand`, `pnpm test:e2e`, `pnpm build`, `docker build .`, `docker compose up -d --build`, healthy container checks, and `docker compose down`.
+- Latest local verification completed on Saturday, August 8, 2026 with `pnpm test -- --runInBand` and `pnpm build` after the latest Telegram UX, Docker, logs, and user-management updates.
 
 ## Tech Stack
 
@@ -77,7 +78,7 @@ pnpm build
 
 ## Post-v1 Backlog
 
-- Richer per-container Docker drill-down and queued execution can land as follow-up enhancements without blocking deployment readiness.
+- Queued execution for longer-running Docker or deploy jobs can land as a follow-up enhancement without blocking current deployment readiness.
 
 ## Planning Artifacts
 

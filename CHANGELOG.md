@@ -42,3 +42,13 @@
 - Added `TELEGRAM_MODE=disabled` support for smoke validation and fixed boolean env parsing so `"false"` no longer becomes truthy in production checks.
 - Fixed production container startup by using the correct Nest output path, retaining Prisma CLI in the runtime image, and applying migrations before boot.
 - Validated the production image and Compose stack end-to-end on Wednesday, August 5, 2026, including healthy `/health` responses from the running container.
+- Added stable same-message refresh handling so Telegram mobile refreshes reuse the active screen instead of emitting duplicate fallback messages.
+- Added confirmed Docker container removal to the Telegram control surface, keeping destructive actions behind existing token-based approvals.
+- Added per-container log shortcuts so operators can inspect logs for a specific container instead of relying on a single inferred default target.
+- Added confirmed `/adduser` and `/setrole` Telegram commands for manual provisioning and role updates without editing the database directly.
+
+### Changed
+
+- Reworked deploy, backup, Docker, logs, and user action keyboards for smaller mobile screens by splitting long actions into stacked rows and truncating long labels where needed.
+- Removed placeholder keyboards from live Telegram screens such as `Dashboard`, `Server`, `Database`, and `Audit` now that those views are backed by real data.
+- Changed unknown Telegram callback fallback behavior to return the operator safely to `Home` instead of reopening a generic placeholder screen.

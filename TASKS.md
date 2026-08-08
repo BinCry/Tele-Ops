@@ -1,6 +1,6 @@
 # TeleOps Task Board
 
-Updated: 2026-08-05
+Updated: 2026-08-08
 
 ## Milestone 0 - Repository Foundation
 
@@ -68,7 +68,11 @@ Updated: 2026-08-05
 - [x] Fixed production container startup by aligning Nest output paths, keeping Prisma CLI in the runtime image, and running `prisma migrate deploy` before boot.
 - [x] Added `TELEGRAM_MODE=disabled` support and strict boolean env parsing so container smoke tests match real runtime behavior.
 - [x] Completed live Docker validation on Wednesday, August 5, 2026 with `docker build .`, `docker compose up -d --build`, healthy service checks, and `docker compose down`.
+- [x] Stabilized Telegram refresh rendering on mobile so unchanged edits no longer create duplicate messages.
+- [x] Added confirmed Docker container removal plus per-container log shortcuts for faster operator drill-down.
+- [x] Added confirmed manual `/adduser` and `/setrole` Telegram commands for safer user provisioning and role management.
+- [x] Replaced remaining live-screen placeholder keyboards and routed unknown callbacks safely back to Home.
 
 ## Post-v1 Backlog
 
-- [ ] Add queued execution and richer per-container drill-down for Docker mutations.
+- [ ] Add queued execution for long-running Docker mutations and deploy jobs when serialized orchestration becomes necessary.

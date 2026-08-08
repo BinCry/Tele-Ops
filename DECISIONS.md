@@ -1,6 +1,6 @@
 # TeleOps Technical Decisions
 
-Updated: 2026-08-05
+Updated: 2026-08-08
 
 ## Accepted
 
@@ -41,3 +41,6 @@ Updated: 2026-08-05
 25. The v1 deployment handoff includes concrete YAML examples, runbooks, a threat model, and a dated readiness report in-repo so operators can deploy and recover without relying on chat history.
 26. The production container keeps Prisma CLI available and runs `prisma migrate deploy` before boot so a fresh PostgreSQL instance can reach a valid schema without a separate manual migration step.
 27. `TELEGRAM_MODE=disabled` is a supported runtime mode for smoke validation and container health checks when the app should start without connecting to Telegram.
+28. Mobile Telegram keyboards now prefer stacked rows and truncated labels over dense side-by-side layouts whenever long action labels would render poorly on smaller phones.
+29. Privileged user provisioning and role changes are exposed as explicit confirmed Telegram commands (`/adduser` and `/setrole`) so access mutations stay deliberate, parseable, and auditable.
+30. Per-container log shortcuts and confirmed container removal are treated as sufficient v1 Docker drill-down, leaving only queued orchestration as a follow-up concern rather than a readiness blocker.

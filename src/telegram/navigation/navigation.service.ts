@@ -8,7 +8,6 @@ import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import {
   buildRefreshCallback,
-  RefreshableTelegramCallback,
   TELEGRAM_CALLBACKS,
   TelegramCallback,
 } from '../callbacks/callback-data';
@@ -133,32 +132,6 @@ export class TelegramNavigationService {
             {
               text: '🔄 Làm mới',
               callback_data: buildRefreshCallback(TELEGRAM_CALLBACKS.home),
-            },
-          ],
-        ],
-      ),
-    };
-  }
-
-  buildFeaturePlaceholder(
-    featureLabel: string,
-    refreshTarget: RefreshableTelegramCallback,
-  ): TelegramScreen {
-    return {
-      text: [
-        '🛠 <b>Đang xây dựng</b>',
-        '',
-        `Mục <b>${featureLabel}</b> đang được triển khai.`,
-        'Bạn có thể quay lại Home hoặc chờ milestone tiếp theo.',
-      ].join('\n'),
-      keyboard: buildKeyboard(
-        [],
-        [
-          [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
-          [
-            {
-              text: '🔄 Làm mới',
-              callback_data: buildRefreshCallback(refreshTarget),
             },
           ],
         ],
