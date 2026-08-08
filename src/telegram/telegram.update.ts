@@ -289,7 +289,7 @@ export class TelegramUpdate {
         FEATURE_LABELS[refreshTargetCallback] ??
         FEATURE_LABELS[TELEGRAM_CALLBACKS.home];
 
-      await context.answerCbQuery(`Äang lÃ m má»›i ${featureLabel}...`);
+      await context.answerCbQuery(`Đang làm mới ${featureLabel}...`);
       await this.auditService.record({
         actorUserId: authorizationResult.user.id,
         action: 'telegram.refresh',
@@ -509,24 +509,33 @@ export class TelegramUpdate {
             : ['Chưa có deployment target nào được cấu hình.']),
         ].join('\n'),
         keyboard: buildKeyboard(
-          this.rbacService.hasPermission(
-            authorizationResult.user.role,
-            PERMISSIONS.deployRun,
-          )
-            ? deployOverview.targets
-                .filter((target) => target.enabled)
-                .flatMap((target) => [
-                  {
-                    text: `🚀 ${target.displayName}`,
-                    callback_data: buildDeployRunCallback(target.name),
-                  },
-                  {
-                    text: `↩️ Rollback ${target.displayName}`,
-                    callback_data: buildDeployRollbackCallback(target.name),
-                  },
-                ])
-            : [],
+          [],
           [
+            ...(
+              this.rbacService.hasPermission(
+                authorizationResult.user.role,
+                PERMISSIONS.deployRun,
+              )
+                ? deployOverview.targets
+                    .filter((target) => target.enabled)
+                    .flatMap((target) => [
+                      [
+                        {
+                          text: `🚀 ${target.displayName}`,
+                          callback_data: buildDeployRunCallback(target.name),
+                        },
+                      ],
+                      [
+                        {
+                          text: `↩️ Rollback ${truncateInlineLabel(target.displayName, 18)}`,
+                          callback_data: buildDeployRollbackCallback(
+                            target.name,
+                          ),
+                        },
+                      ],
+                    ])
+                : []
+            ),
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
             [
               {
@@ -583,26 +592,33 @@ export class TelegramUpdate {
             : ['Chưa có bản ghi backup nào trong hệ thống.']),
         ].join('\n'),
         keyboard: buildKeyboard(
-          this.rbacService.hasPermission(
-            authorizationResult.user.role,
-            PERMISSIONS.backupRun,
-          )
-            ? [
-                ...(backupSnapshot.enabled
-                  ? [
-                      {
-                        text: '💾 Tạo backup',
-                        callback_data: buildBackupCreateCallback(),
-                      },
-                    ]
-                  : []),
-                {
-                  text: '📦 Gửi backup gần nhất',
-                  callback_data: buildBackupDownloadLatestCallback(),
-                },
-              ]
-            : [],
+          [],
           [
+            ...(
+              this.rbacService.hasPermission(
+                authorizationResult.user.role,
+                PERMISSIONS.backupRun,
+              )
+                ? [
+                    ...(backupSnapshot.enabled
+                      ? [
+                          [
+                            {
+                              text: '💾 Tạo backup',
+                              callback_data: buildBackupCreateCallback(),
+                            },
+                          ],
+                        ]
+                      : []),
+                    [
+                      {
+                        text: '📦 Gửi backup gần nhất',
+                        callback_data: buildBackupDownloadLatestCallback(),
+                      },
+                    ],
+                  ]
+                : []
+            ),
             [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
             [
               {
@@ -725,13 +741,13 @@ export class TelegramUpdate {
             ...(overview.containers.length > 0
               ? overview.containers.map(
                   (container, index) =>
-                    `${index + 1}. <b>${escapeHtml(container.name)}</b> | ${escapeHtml(container.state)} | ${escapeHtml(container.status)}`,
+                    `${index + 1}. ${getDockerContainerEmoji(container)} <b>${escapeHtml(container.name)}</b> | ${escapeHtml(container.state)} | ${escapeHtml(container.status)}`,
                 )
               : ['Không tìm thấy container phù hợp.']),
             '',
             dangerousActionsEnabled
               ? canManageDocker
-                ? 'Có thể thao tác start/stop/restart sau bước xác nhận.'
+                ? 'Có thể thao tác start/stop/restart/remove sau bước xác nhận.'
                 : 'Tài khoản hiện tại chỉ có quyền xem, không thể thao tác.'
               : 'Dangerous Docker actions đang bị tắt trong cấu hình.',
           ].join('\n'),
@@ -2348,6 +2364,40 @@ function getDockerActionEmoji(action: 'start' | 'stop' | 'restart'): string {
     case 'restart':
       return '🔄';
   }
+}
+
+function getDockerContainerEmoji(container: {
+  state: string;
+  status: string;
+}): string {
+  const normalizedState = container.state.toLowerCase();
+  const normalizedStatus = container.status.toLowerCase();
+
+  if (normalizedState === 'running') {
+    return normalizedStatus.includes('healthy') ? '🟢' : '🔵';
+  }
+
+  if (normalizedState === 'paused') {
+    return '⏸️';
+  }
+
+  if (normalizedState === 'restarting') {
+    return '🔄';
+  }
+
+  if (normalizedState === 'exited' || normalizedState === 'dead') {
+    return '🔴';
+  }
+
+  return '⚪';
+}
+
+function truncateInlineLabel(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function parseUserTargetStatus(actionType: string): UserStatus | null {

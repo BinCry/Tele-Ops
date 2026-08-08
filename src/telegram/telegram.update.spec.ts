@@ -387,9 +387,7 @@ describe('TelegramUpdate', () => {
       buildRefreshCallback(TELEGRAM_CALLBACKS.database),
     );
 
-    expect(answerCbQueryMock).toHaveBeenCalledWith(
-      'Äang lÃ m má»›i Database...',
-    );
+    expect(answerCbQueryMock).toHaveBeenCalledWith('Đang làm mới Database...');
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('db:5432'),
       expect.objectContaining({

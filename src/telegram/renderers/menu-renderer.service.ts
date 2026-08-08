@@ -22,12 +22,24 @@ export class TelegramMenuRenderer {
       try {
         await context.editMessageText(screen.text, replyMarkup);
         return;
-      } catch {
+      } catch (error) {
+        if (this.isMessageNotModifiedError(error)) {
+          return;
+        }
+
         await context.reply(screen.text, replyMarkup);
         return;
       }
     }
 
     await context.reply(screen.text, replyMarkup);
+  }
+
+  private isMessageNotModifiedError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    return error.message.toLowerCase().includes('message is not modified');
   }
 }
