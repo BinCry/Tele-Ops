@@ -91,6 +91,9 @@ export class TelegramService implements OnModuleInit, OnApplicationShutdown {
 
   private registerHandlers(bot: Telegraf<TelegramBotContext>): void {
     bot.start((context) => this.telegramUpdate.handleStart(context));
+    bot.command('adduser', (context) =>
+      this.telegramUpdate.handleAddUserCommand(context),
+    );
     bot.command('cancel', (context) =>
       this.telegramUpdate.handleCancel(context),
     );

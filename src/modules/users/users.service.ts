@@ -14,6 +14,17 @@ export type UserSummary = Pick<
   'displayName' | 'telegramUserId' | 'role' | 'status' | 'lastSeenAt'
 >;
 
+export type ManagedUserRole =
+  | typeof UserRole.ADMIN
+  | typeof UserRole.OPERATOR
+  | typeof UserRole.VIEWER;
+
+export type ManagedUserInput = {
+  telegramUserId: string;
+  role: ManagedUserRole;
+  createdById: string;
+};
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -156,6 +167,26 @@ export class UsersService {
       },
       data: {
         status,
+      },
+    });
+  }
+
+  async createManagedUser(input: ManagedUserInput): Promise<User> {
+    return this.prismaService.user.upsert({
+      where: {
+        telegramUserId: input.telegramUserId,
+      },
+      update: {
+        role: input.role,
+        status: UserStatus.ACTIVE,
+        displayName: `Telegram ${input.telegramUserId}`,
+      },
+      create: {
+        telegramUserId: input.telegramUserId,
+        displayName: `Telegram ${input.telegramUserId}`,
+        role: input.role,
+        status: UserStatus.ACTIVE,
+        createdById: input.createdById,
       },
     });
   }

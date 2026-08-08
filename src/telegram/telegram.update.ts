@@ -26,7 +26,10 @@ import { PERMISSIONS, Permission } from 'src/modules/rbac/permissions';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { ServerService } from 'src/modules/server/server.service';
 import { SettingsService } from 'src/modules/settings/settings.service';
-import { UsersService } from 'src/modules/users/users.service';
+import {
+  ManagedUserRole,
+  UsersService,
+} from 'src/modules/users/users.service';
 import {
   buildActionCancelCallback,
   buildActionConfirmCallback,
@@ -166,6 +169,104 @@ export class TelegramUpdate {
     );
 
     await this.handleStart(context);
+  }
+
+  async handleAddUserCommand(context: TelegramBotContext): Promise<void> {
+    const authorizationResult =
+      await this.authService.authorizeTelegramContext(context);
+
+    if (authorizationResult.status === 'unauthorized') {
+      await context.reply(authorizationResult.message, {
+        parse_mode: 'HTML',
+      });
+      return;
+    }
+
+    if (
+      !this.rbacService.hasPermission(
+        authorizationResult.user.role,
+        PERMISSIONS.usersManage,
+      )
+    ) {
+      await context.reply('Bạn không có quyền thêm người dùng mới.', {
+        parse_mode: 'HTML',
+      });
+      return;
+    }
+
+    const messageText =
+      'message' in context.update && 'text' in context.update.message
+        ? context.update.message.text
+        : '';
+    const parsedCommand = parseAddUserCommand(messageText);
+
+    if (!parsedCommand) {
+      await context.reply(
+        [
+          '👥 <b>Thêm người dùng mới</b>',
+          '',
+          'Cú pháp: <code>/adduser &lt;telegram_user_id&gt; &lt;role&gt;</code>',
+          'Role hợp lệ: <b>ADMIN</b>, <b>OPERATOR</b>, <b>VIEWER</b>.',
+          'Ví dụ: <code>/adduser 6187399924 OPERATOR</code>',
+        ].join('\n'),
+        {
+          parse_mode: 'HTML',
+        },
+      );
+      return;
+    }
+
+    const actionRequest = await this.actionRequestService.createPendingRequest({
+      actorUserId: authorizationResult.user.id,
+      actionType: 'user.create',
+      resourceType: 'user',
+      resourceId: parsedCommand.telegramUserId,
+      payloadJson: {
+        telegramUserId: parsedCommand.telegramUserId,
+        role: parsedCommand.role,
+      },
+    });
+
+    await this.auditService.record({
+      actorUserId: authorizationResult.user.id,
+      action: 'telegram.user.create.request',
+      resourceType: 'user',
+      resourceId: parsedCommand.telegramUserId,
+      payloadJson: {
+        role: parsedCommand.role,
+        token: actionRequest.token,
+      },
+      result: AuditResult.STARTED,
+    });
+
+    await context.reply(
+      [
+        '⚠️ <b>Xác nhận thêm người dùng</b>',
+        '',
+        `Telegram ID: <code>${escapeHtml(parsedCommand.telegramUserId)}</code>`,
+        `Role: <b>${parsedCommand.role}</b>`,
+        'Bạn cần xác nhận trước khi TeleOps tạo hoặc kích hoạt tài khoản này.',
+      ].join('\n'),
+      {
+        parse_mode: 'HTML',
+        reply_markup: buildKeyboard(
+          [],
+          [
+            [
+              {
+                text: '✅ Xác nhận',
+                callback_data: buildActionConfirmCallback(actionRequest.token),
+              },
+              {
+                text: '❌ Hủy',
+                callback_data: buildActionCancelCallback(actionRequest.token),
+              },
+            ],
+            [{ text: '👥 Users', callback_data: TELEGRAM_CALLBACKS.users }],
+          ],
+        ),
+      },
+    );
   }
 
   async handleCallback(
@@ -919,6 +1020,9 @@ export class TelegramUpdate {
       await this.menuRenderer.renderScreen(context, {
         text: [
           '👥 <b>Người dùng</b>',
+          '',
+          '➕ Thêm user thủ công: <code>/adduser &lt;telegram_user_id&gt; &lt;role&gt;</code>',
+          'Role hỗ trợ: <b>ADMIN</b>, <b>OPERATOR</b>, <b>VIEWER</b>.',
           '',
           ...(users.length > 0
             ? users.map(
@@ -1769,6 +1873,38 @@ export class TelegramUpdate {
         return;
       }
 
+      const userCreatePayload = parseUserCreatePayload(
+        resolution.request.actionType,
+        resolution.request.payloadJson,
+      );
+
+      if (userCreatePayload) {
+        const createdUser = await this.usersService.createManagedUser({
+          telegramUserId: userCreatePayload.telegramUserId,
+          role: userCreatePayload.role,
+          createdById: actorUserId,
+        });
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId,
+          action: 'telegram.user.create.execute',
+          resourceType: 'user',
+          resourceId: createdUser.telegramUserId,
+          payloadJson: {
+            role: createdUser.role,
+            status: createdUser.status,
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã thêm người dùng thành công.');
+        await this.menuRenderer.renderScreen(
+          context,
+          buildUserCreateSuccessScreen(createdUser),
+        );
+        return;
+      }
+
       const settingsMutation = parseSettingsMutationAction(
         resolution.request.actionType,
       );
@@ -2235,6 +2371,34 @@ function buildUserStatusSuccessScreen(user: {
   };
 }
 
+function buildUserCreateSuccessScreen(user: {
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  telegramUserId: string;
+}): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  return {
+    text: [
+      '✅ <b>Thêm người dùng thành công</b>',
+      '',
+      `Người dùng: <b>${escapeHtml(user.displayName)}</b>`,
+      `Telegram ID: <code>${escapeHtml(user.telegramUserId)}</code>`,
+      `Role: <b>${user.role}</b>`,
+      `Trạng thái: <b>${user.status}</b>`,
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: '👥 Users', callback_data: TELEGRAM_CALLBACKS.users }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
+}
+
 function buildSettingsSuccessScreen(settingsMutation: {
   kind: 'dangerous' | 'ttl';
   label: string;
@@ -2525,6 +2689,86 @@ function parseUserTargetStatus(actionType: string): UserStatus | null {
   }
 
   return null;
+}
+
+function parseAddUserCommand(messageText: string): {
+  telegramUserId: string;
+  role: ManagedUserRole;
+} | null {
+  const trimmedMessage = messageText.trim();
+
+  if (trimmedMessage.length === 0) {
+    return null;
+  }
+
+  const parts = trimmedMessage.split(/\s+/);
+
+  if (parts.length < 3 || parts[0]?.toLowerCase() !== '/adduser') {
+    return null;
+  }
+
+  const telegramUserId = parts[1] ?? '';
+  const rawRole = parts[2]?.toUpperCase() ?? '';
+
+  if (!/^[0-9]{5,20}$/.test(telegramUserId)) {
+    return null;
+  }
+
+  if (
+    rawRole !== UserRole.ADMIN &&
+    rawRole !== UserRole.OPERATOR &&
+    rawRole !== UserRole.VIEWER
+  ) {
+    return null;
+  }
+
+  return {
+    telegramUserId,
+    role: rawRole,
+  };
+}
+
+function parseUserCreatePayload(
+  actionType: string,
+  payload: unknown,
+): {
+  telegramUserId: string;
+  role: ManagedUserRole;
+} | null {
+  if (
+    actionType !== 'user.create' ||
+    !payload ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload)
+  ) {
+    return null;
+  }
+
+  const telegramUserId =
+    typeof (payload as { telegramUserId?: unknown }).telegramUserId === 'string'
+      ? (payload as { telegramUserId: string }).telegramUserId
+      : null;
+  const role =
+    typeof (payload as { role?: unknown }).role === 'string'
+      ? (payload as { role: string }).role
+      : null;
+
+  if (!telegramUserId || !role) {
+    return null;
+  }
+
+  if (
+    role !== UserRole.ADMIN &&
+    role !== UserRole.OPERATOR &&
+    role !== UserRole.VIEWER
+  ) {
+    return null;
+  }
+
+  return {
+    telegramUserId,
+    role,
+  };
 }
 
 function parseSettingsMutationAction(actionType: string):

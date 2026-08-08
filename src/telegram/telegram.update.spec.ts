@@ -106,6 +106,7 @@ describe('TelegramUpdate', () => {
     findByTelegramUserId: jest.Mock;
     listUserSummaries: jest.Mock;
     updateUserStatus: jest.Mock;
+    createManagedUser: jest.Mock;
   };
   let settingsService: {
     getSettingsSnapshot: jest.Mock;
@@ -175,6 +176,7 @@ describe('TelegramUpdate', () => {
       findByTelegramUserId: jest.fn(),
       listUserSummaries: jest.fn(),
       updateUserStatus: jest.fn(),
+      createManagedUser: jest.fn(),
     };
     settingsService = {
       getSettingsSnapshot: jest.fn().mockResolvedValue({
@@ -263,6 +265,45 @@ describe('TelegramUpdate', () => {
       }),
     );
     expect(auditService.record).toHaveBeenCalled();
+  });
+
+  it('creates a confirmation flow for manually adding a user', async () => {
+    const { context, replyMock } = createMockContext(123456789);
+    (
+      context.update as {
+        message: { message_id: number; text: string };
+      }
+    ).message.text = '/adduser 6187399924 OPERATOR';
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.createPendingRequest.mockResolvedValue({
+      id: 'user-create-request-1',
+      token: '6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    });
+
+    await telegramUpdate.handleAddUserCommand(context);
+
+    expect(actionRequestService.createPendingRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: 'user.create',
+        resourceId: '6187399924',
+      }),
+    );
+    expect(replyMock).toHaveBeenCalledWith(
+      expect.stringContaining('6187399924'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
   });
 
   it('acknowledges callbacks and refreshes the home screen for authorized users', async () => {
@@ -1250,6 +1291,62 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('Guest User'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('creates a managed user after confirmation', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.resolveForActor.mockResolvedValue({
+      status: 'ready',
+      request: {
+        id: 'user-create-request-1',
+        actionType: 'user.create',
+        resourceType: 'user',
+        resourceId: '6187399924',
+        payloadJson: {
+          telegramUserId: '6187399924',
+          role: UserRole.OPERATOR,
+        },
+      },
+    });
+    usersService.createManagedUser.mockResolvedValue({
+      id: 'user-operator-1',
+      telegramUserId: '6187399924',
+      displayName: 'Telegram 6187399924',
+      role: UserRole.OPERATOR,
+      status: UserStatus.ACTIVE,
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:confirm:6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    );
+
+    expect(usersService.createManagedUser).toHaveBeenCalledWith({
+      telegramUserId: '6187399924',
+      role: UserRole.OPERATOR,
+      createdById: 'owner-1',
+    });
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Đã thêm người dùng thành công.',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('Telegram 6187399924'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),

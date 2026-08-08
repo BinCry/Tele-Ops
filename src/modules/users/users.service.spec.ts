@@ -91,4 +91,33 @@ describe('UsersService', () => {
     ).rejects.toThrow('Owner user cannot be disabled.');
     expect(prismaService.user.update).not.toHaveBeenCalled();
   });
+
+  it('creates or upgrades a managed user with the requested role', async () => {
+    const prismaService = {
+      user: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'user-3',
+          telegramUserId: '6187399924',
+          displayName: 'Telegram 6187399924',
+          role: UserRole.OPERATOR,
+          status: UserStatus.ACTIVE,
+        }),
+      },
+    };
+    const service = new UsersService(prismaService as never);
+
+    await expect(
+      service.createManagedUser({
+        telegramUserId: '6187399924',
+        role: UserRole.OPERATOR,
+        createdById: 'owner-1',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        telegramUserId: '6187399924',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      }),
+    );
+  });
 });
