@@ -462,13 +462,13 @@ export class TelegramUpdate {
         text: [
           '🗄 <b>Database</b>',
           '',
-          `Host: <b>${escapeHtml(databaseSnapshot.host)}</b>`,
-          `Database: <b>${escapeHtml(databaseSnapshot.databaseName)}</b>`,
+          `🖥️ Host: <b>${escapeHtml(databaseSnapshot.host)}</b>`,
+          `🗄️ Database: <b>${escapeHtml(databaseSnapshot.databaseName)}</b>`,
           databaseSnapshot.reachable
-            ? 'Trạng thái: <b>🟢 Kết nối thành công</b>'
-            : 'Trạng thái: <b>🔴 Không kết nối được</b>',
+            ? '📊 Trạng thái: <b>🟢 Kết nối thành công</b>'
+            : '📊 Trạng thái: <b>🔴 Không kết nối được</b>',
           ...(databaseSnapshot.error
-            ? [`Lỗi: <code>${escapeHtml(databaseSnapshot.error)}</code>`]
+            ? [`❌ Lỗi: <code>${escapeHtml(databaseSnapshot.error)}</code>`]
             : []),
         ].join('\n'),
         keyboard:
