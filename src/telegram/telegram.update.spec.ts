@@ -107,6 +107,7 @@ describe('TelegramUpdate', () => {
     listUserSummaries: jest.Mock;
     updateUserStatus: jest.Mock;
     createManagedUser: jest.Mock;
+    updateManagedUserRole: jest.Mock;
   };
   let settingsService: {
     getSettingsSnapshot: jest.Mock;
@@ -177,6 +178,7 @@ describe('TelegramUpdate', () => {
       listUserSummaries: jest.fn(),
       updateUserStatus: jest.fn(),
       createManagedUser: jest.fn(),
+      updateManagedUserRole: jest.fn(),
     };
     settingsService = {
       getSettingsSnapshot: jest.fn().mockResolvedValue({
@@ -300,6 +302,45 @@ describe('TelegramUpdate', () => {
     );
     expect(replyMock).toHaveBeenCalledWith(
       expect.stringContaining('6187399924'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('creates a confirmation flow for changing a user role', async () => {
+    const { context, replyMock } = createMockContext(123456789);
+    (
+      context.update as {
+        message: { message_id: number; text: string };
+      }
+    ).message.text = '/setrole 6187399924 ADMIN';
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.createPendingRequest.mockResolvedValue({
+      id: 'user-role-request-1',
+      token: '6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    });
+
+    await telegramUpdate.handleSetRoleCommand(context);
+
+    expect(actionRequestService.createPendingRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: 'user.role.set',
+        resourceId: '6187399924',
+      }),
+    );
+    expect(replyMock).toHaveBeenCalledWith(
+      expect.stringContaining('Role mới'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),
@@ -1347,6 +1388,61 @@ describe('TelegramUpdate', () => {
     );
     expect(editMessageTextMock).toHaveBeenCalledWith(
       expect.stringContaining('Telegram 6187399924'),
+      expect.objectContaining({
+        parse_mode: 'HTML',
+      }),
+    );
+  });
+
+  it('updates a managed user role after confirmation', async () => {
+    const { context, answerCbQueryMock, editMessageTextMock } =
+      createMockContext(123456789, 'callback');
+
+    authService.authorizeTelegramContext.mockResolvedValue({
+      status: 'authorized',
+      user: {
+        id: 'owner-1',
+        telegramUserId: '123456789',
+        displayName: 'Owner User',
+        role: UserRole.OWNER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    actionRequestService.resolveForActor.mockResolvedValue({
+      status: 'ready',
+      request: {
+        id: 'user-role-request-1',
+        actionType: 'user.role.set',
+        resourceType: 'user',
+        resourceId: '6187399924',
+        payloadJson: {
+          telegramUserId: '6187399924',
+          role: UserRole.ADMIN,
+        },
+      },
+    });
+    usersService.updateManagedUserRole.mockResolvedValue({
+      id: 'user-admin-1',
+      telegramUserId: '6187399924',
+      displayName: 'Telegram 6187399924',
+      role: UserRole.ADMIN,
+      status: UserStatus.ACTIVE,
+    });
+
+    await telegramUpdate.handleCallback(
+      context,
+      'action:confirm:6d7d86f7-657b-4f6d-8c2f-3f8efec2eb89',
+    );
+
+    expect(usersService.updateManagedUserRole).toHaveBeenCalledWith(
+      '6187399924',
+      UserRole.ADMIN,
+    );
+    expect(answerCbQueryMock).toHaveBeenCalledWith(
+      'Đã cập nhật role người dùng.',
+    );
+    expect(editMessageTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('Role mới: <b>ADMIN</b>'),
       expect.objectContaining({
         parse_mode: 'HTML',
       }),

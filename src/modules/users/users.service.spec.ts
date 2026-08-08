@@ -120,4 +120,34 @@ describe('UsersService', () => {
       }),
     );
   });
+
+  it('updates the role of an existing managed user', async () => {
+    const prismaService = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'user-4',
+          telegramUserId: '6187399924',
+          role: UserRole.VIEWER,
+          status: UserStatus.ACTIVE,
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'user-4',
+          telegramUserId: '6187399924',
+          displayName: 'Telegram 6187399924',
+          role: UserRole.OPERATOR,
+          status: UserStatus.ACTIVE,
+        }),
+      },
+    };
+    const service = new UsersService(prismaService as never);
+
+    await expect(
+      service.updateManagedUserRole('6187399924', UserRole.OPERATOR),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        telegramUserId: '6187399924',
+        role: UserRole.OPERATOR,
+      }),
+    );
+  });
 });

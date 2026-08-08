@@ -269,6 +269,104 @@ export class TelegramUpdate {
     );
   }
 
+  async handleSetRoleCommand(context: TelegramBotContext): Promise<void> {
+    const authorizationResult =
+      await this.authService.authorizeTelegramContext(context);
+
+    if (authorizationResult.status === 'unauthorized') {
+      await context.reply(authorizationResult.message, {
+        parse_mode: 'HTML',
+      });
+      return;
+    }
+
+    if (
+      !this.rbacService.hasPermission(
+        authorizationResult.user.role,
+        PERMISSIONS.usersManage,
+      )
+    ) {
+      await context.reply('Bạn không có quyền đổi role người dùng.', {
+        parse_mode: 'HTML',
+      });
+      return;
+    }
+
+    const messageText =
+      'message' in context.update && 'text' in context.update.message
+        ? context.update.message.text
+        : '';
+    const parsedCommand = parseSetRoleCommand(messageText);
+
+    if (!parsedCommand) {
+      await context.reply(
+        [
+          '🛡 <b>Đổi role người dùng</b>',
+          '',
+          'Cú pháp: <code>/setrole &lt;telegram_user_id&gt; &lt;role&gt;</code>',
+          'Role hợp lệ: <b>ADMIN</b>, <b>OPERATOR</b>, <b>VIEWER</b>.',
+          'Ví dụ: <code>/setrole 6187399924 ADMIN</code>',
+        ].join('\n'),
+        {
+          parse_mode: 'HTML',
+        },
+      );
+      return;
+    }
+
+    const actionRequest = await this.actionRequestService.createPendingRequest({
+      actorUserId: authorizationResult.user.id,
+      actionType: 'user.role.set',
+      resourceType: 'user',
+      resourceId: parsedCommand.telegramUserId,
+      payloadJson: {
+        telegramUserId: parsedCommand.telegramUserId,
+        role: parsedCommand.role,
+      },
+    });
+
+    await this.auditService.record({
+      actorUserId: authorizationResult.user.id,
+      action: 'telegram.user.role.request',
+      resourceType: 'user',
+      resourceId: parsedCommand.telegramUserId,
+      payloadJson: {
+        role: parsedCommand.role,
+        token: actionRequest.token,
+      },
+      result: AuditResult.STARTED,
+    });
+
+    await context.reply(
+      [
+        '⚠️ <b>Xác nhận đổi role</b>',
+        '',
+        `Telegram ID: <code>${escapeHtml(parsedCommand.telegramUserId)}</code>`,
+        `Role mới: <b>${parsedCommand.role}</b>`,
+        'Bạn cần xác nhận trước khi TeleOps cập nhật role của tài khoản này.',
+      ].join('\n'),
+      {
+        parse_mode: 'HTML',
+        reply_markup: buildKeyboard(
+          [],
+          [
+            [
+              {
+                text: '✅ Xác nhận',
+                callback_data: buildActionConfirmCallback(actionRequest.token),
+              },
+              {
+                text: '❌ Hủy',
+                callback_data: buildActionCancelCallback(actionRequest.token),
+              },
+            ],
+            [{ text: '👥 Users', callback_data: TELEGRAM_CALLBACKS.users }],
+          ],
+        ),
+      },
+    );
+  }
+
   async handleCallback(
     context: TelegramBotContext,
     callbackData: string,
@@ -1045,6 +1143,7 @@ export class TelegramUpdate {
           '👥 <b>Người dùng</b>',
           '',
           '➕ Thêm user thủ công: <code>/adduser &lt;telegram_user_id&gt; &lt;role&gt;</code>',
+          '🛡 Đổi role: <code>/setrole &lt;telegram_user_id&gt; &lt;role&gt;</code>',
           'Role hỗ trợ: <b>ADMIN</b>, <b>OPERATOR</b>, <b>VIEWER</b>.',
           '',
           ...(users.length > 0
@@ -1064,7 +1163,7 @@ export class TelegramUpdate {
                 if (user.status === UserStatus.ACTIVE) {
                   return [
                     {
-                      text: `⛔ ${user.displayName}`,
+                      text: `⛔ ${truncateInlineLabel(user.displayName, 24)}`,
                       callback_data: buildUserStatusActionCallback(
                         'disable',
                         user.telegramUserId,
@@ -1075,7 +1174,7 @@ export class TelegramUpdate {
 
                 return [
                   {
-                    text: `✅ ${user.displayName}`,
+                    text: `✅ ${truncateInlineLabel(user.displayName, 24)}`,
                     callback_data: buildUserStatusActionCallback(
                       'activate',
                       user.telegramUserId,
@@ -1935,6 +2034,37 @@ export class TelegramUpdate {
         return;
       }
 
+      const userRolePayload = parseUserRolePayload(
+        resolution.request.actionType,
+        resolution.request.payloadJson,
+      );
+
+      if (userRolePayload) {
+        const updatedUser = await this.usersService.updateManagedUserRole(
+          userRolePayload.telegramUserId,
+          userRolePayload.role,
+        );
+
+        await this.actionRequestService.markExecuted(resolution.request.id);
+        await this.auditService.record({
+          actorUserId,
+          action: 'telegram.user.role.execute',
+          resourceType: 'user',
+          resourceId: updatedUser.telegramUserId,
+          payloadJson: {
+            role: updatedUser.role,
+            status: updatedUser.status,
+          },
+          result: AuditResult.SUCCESS,
+        });
+        await context.answerCbQuery('Đã cập nhật role người dùng.');
+        await this.menuRenderer.renderScreen(
+          context,
+          buildUserRoleSuccessScreen(updatedUser),
+        );
+        return;
+      }
+
       const settingsMutation = parseSettingsMutationAction(
         resolution.request.actionType,
       );
@@ -2429,6 +2559,34 @@ function buildUserCreateSuccessScreen(user: {
   };
 }
 
+function buildUserRoleSuccessScreen(user: {
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  telegramUserId: string;
+}): {
+  text: string;
+  keyboard: ReturnType<typeof buildKeyboard>;
+} {
+  return {
+    text: [
+      '✅ <b>Cập nhật role thành công</b>',
+      '',
+      `Người dùng: <b>${escapeHtml(user.displayName)}</b>`,
+      `Telegram ID: <code>${escapeHtml(user.telegramUserId)}</code>`,
+      `Role mới: <b>${user.role}</b>`,
+      `Trạng thái: <b>${user.status}</b>`,
+    ].join('\n'),
+    keyboard: buildKeyboard(
+      [],
+      [
+        [{ text: '👥 Users', callback_data: TELEGRAM_CALLBACKS.users }],
+        [{ text: '🏠 Home', callback_data: TELEGRAM_CALLBACKS.home }],
+      ],
+    ),
+  };
+}
+
 function buildSettingsSuccessScreen(settingsMutation: {
   kind: 'dangerous' | 'ttl';
   label: string;
@@ -2754,7 +2912,44 @@ function parseAddUserCommand(messageText: string): {
 
   return {
     telegramUserId,
-    role: rawRole,
+    role: rawRole as ManagedUserRole,
+  };
+}
+
+function parseSetRoleCommand(messageText: string): {
+  telegramUserId: string;
+  role: ManagedUserRole;
+} | null {
+  const trimmedMessage = messageText.trim();
+
+  if (trimmedMessage.length === 0) {
+    return null;
+  }
+
+  const parts = trimmedMessage.split(/\s+/);
+
+  if (parts.length < 3 || parts[0]?.toLowerCase() !== '/setrole') {
+    return null;
+  }
+
+  const telegramUserId = parts[1] ?? '';
+  const rawRole = parts[2]?.toUpperCase() ?? '';
+
+  if (!/^[0-9]{5,20}$/.test(telegramUserId)) {
+    return null;
+  }
+
+  if (
+    rawRole !== UserRole.ADMIN &&
+    rawRole !== UserRole.OPERATOR &&
+    rawRole !== UserRole.VIEWER
+  ) {
+    return null;
+  }
+
+  return {
+    telegramUserId,
+    role: rawRole as ManagedUserRole,
   };
 }
 
@@ -2765,12 +2960,32 @@ function parseUserCreatePayload(
   telegramUserId: string;
   role: ManagedUserRole;
 } | null {
-  if (
-    actionType !== 'user.create' ||
-    !payload ||
-    typeof payload !== 'object' ||
-    Array.isArray(payload)
-  ) {
+  if (actionType !== 'user.create') {
+    return null;
+  }
+
+  return parseManagedUserPayload(payload);
+}
+
+function parseUserRolePayload(
+  actionType: string,
+  payload: unknown,
+): {
+  telegramUserId: string;
+  role: ManagedUserRole;
+} | null {
+  if (actionType !== 'user.role.set') {
+    return null;
+  }
+
+  return parseManagedUserPayload(payload);
+}
+
+function parseManagedUserPayload(payload: unknown): {
+  telegramUserId: string;
+  role: ManagedUserRole;
+} | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return null;
   }
 
@@ -2797,7 +3012,7 @@ function parseUserCreatePayload(
 
   return {
     telegramUserId,
-    role,
+    role: role as ManagedUserRole,
   };
 }
 

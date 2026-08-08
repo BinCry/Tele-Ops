@@ -171,6 +171,38 @@ export class UsersService {
     });
   }
 
+  async updateManagedUserRole(
+    telegramUserId: string,
+    role: ManagedUserRole,
+  ): Promise<User> {
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        telegramUserId,
+      },
+    });
+
+    if (!user) {
+      throw new Error(`User "${telegramUserId}" was not found.`);
+    }
+
+    if (user.role === UserRole.OWNER) {
+      throw new Error('Owner user role cannot be changed.');
+    }
+
+    if (user.role === role) {
+      return user;
+    }
+
+    return this.prismaService.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        role,
+      },
+    });
+  }
+
   async createManagedUser(input: ManagedUserInput): Promise<User> {
     return this.prismaService.user.upsert({
       where: {

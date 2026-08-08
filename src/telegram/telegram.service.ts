@@ -94,6 +94,9 @@ export class TelegramService implements OnModuleInit, OnApplicationShutdown {
     bot.command('adduser', (context) =>
       this.telegramUpdate.handleAddUserCommand(context),
     );
+    bot.command('setrole', (context) =>
+      this.telegramUpdate.handleSetRoleCommand(context),
+    );
     bot.command('cancel', (context) =>
       this.telegramUpdate.handleCancel(context),
     );
